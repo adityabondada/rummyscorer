@@ -84,7 +84,11 @@ describe('game state', () => {
       { seq: 1, winnerId: 'b', entries: { a: pts(5) }, rejoins: [{ playerId: 'b', seatIndex: 0 }] },
       to,
     );
-    expect(round).toMatchObject({ winnerId: 'g', entries: { a: pts(5) }, rejoins: [{ playerId: 'g' }] });
+    expect(round).toMatchObject({
+      winnerId: 'g',
+      entries: { a: pts(5) },
+      rejoins: [{ playerId: 'g' }],
+    });
   });
 });
 
@@ -96,7 +100,10 @@ describe('buildRound', () => {
   });
 
   it('needs a winner', () => {
-    expect(buildRound(state(), emptyForm(), 1)).toMatchObject({ ok: false, error: 'Pick who won the round' });
+    expect(buildRound(state(), emptyForm(), 1)).toMatchObject({
+      ok: false,
+      error: 'Pick who won the round',
+    });
   });
 
   it('needs points or a drop for everyone else', () => {
@@ -129,18 +136,22 @@ describe('buildRound', () => {
   });
 
   it('applies the engine rules, such as the drop limit', () => {
-    const s = gameState(
-      game({ settings: { ...game().settings, maxDrops: 0 } }),
-      [],
-      players(),
+    const s = gameState(game({ settings: { ...game().settings, maxDrops: 0 } }), [], players());
+    const r = buildRound(
+      s,
+      form('a', { b: { kind: 'drop' }, c: { kind: 'points', points: '5' } }),
+      1,
     );
-    const r = buildRound(s, form('a', { b: { kind: 'drop' }, c: { kind: 'points', points: '5' } }), 1);
     expect(r).toMatchObject({ ok: false });
     expect((r as { error: string }).error).toContain('no drops left');
   });
 
   it('applies the penalty cap', () => {
-    const s = gameState(game({ settings: { ...game().settings, maxRoundPenalty: 80 } }), [], players());
+    const s = gameState(
+      game({ settings: { ...game().settings, maxRoundPenalty: 80 } }),
+      [],
+      players(),
+    );
     const r = buildRound(
       s,
       form('a', { b: { kind: 'points', points: '81' }, c: { kind: 'points', points: '5' } }),
@@ -150,7 +161,11 @@ describe('buildRound', () => {
   });
 
   it('is pre-filled from an existing round for editing', () => {
-    const f = formFromRound({ seq: 1, winnerId: 'a', entries: { b: pts(10), c: { kind: 'drop' } } });
+    const f = formFromRound({
+      seq: 1,
+      winnerId: 'a',
+      entries: { b: pts(10), c: { kind: 'drop' } },
+    });
     expect(f).toEqual({
       winnerId: 'a',
       entries: { b: { kind: 'points', points: '10' }, c: { kind: 'drop' } },
@@ -172,30 +187,65 @@ describe('writing rounds', () => {
     );
     expect(plan).toMatchObject({ ok: true, value: { id: null } });
     if (!plan.ok) return;
-    expect(plan.value.doc).toMatchObject({ seq: 2, updatedBy: 'ub', updatedAt: 50, history: [], scrapped: null });
+    expect(plan.value.doc).toMatchObject({
+      seq: 2,
+      updatedBy: 'ub',
+      updatedAt: 50,
+      history: [],
+      scrapped: null,
+    });
   });
 
   it('numbers a new round after scrapped ones too', () => {
     const rs = [rows()[0]!, withScrap(rows()[1]!)];
-    const plan = planNewRound(g, rs, players(), { seq: 0, winnerId: 'a', entries: { b: pts(5), c: pts(5) } }, 'ua', 1);
+    const plan = planNewRound(
+      g,
+      rs,
+      players(),
+      { seq: 0, winnerId: 'a', entries: { b: pts(5), c: pts(5) } },
+      'ua',
+      1,
+    );
     expect(plan.ok && plan.value.doc.seq).toBe(3);
   });
 
   it('writes the ids the game was started with', () => {
     const p = { ...players(), x: person('Guest Bo', { mergedInto: 'b' }) };
     const gm = game({ seatOrder: ['a', 'x', 'c'] });
-    const plan = planNewRound(gm, [], p, { seq: 0, winnerId: 'b', entries: { a: pts(5), c: pts(5) } }, 'ua', 1);
+    const plan = planNewRound(
+      gm,
+      [],
+      p,
+      { seq: 0, winnerId: 'b', entries: { a: pts(5), c: pts(5) } },
+      'ua',
+      1,
+    );
     expect(plan.ok && plan.value.doc.winnerId).toBe('x');
   });
 
   it('refuses a round the game would not accept', () => {
-    const plan = planNewRound(g, rows(), players(), { seq: 0, winnerId: 'c', entries: { a: pts(1), b: pts(1) } }, 'ua', 1);
+    const plan = planNewRound(
+      g,
+      rows(),
+      players(),
+      { seq: 0, winnerId: 'c', entries: { a: pts(1), b: pts(1) } },
+      'ua',
+      1,
+    );
     expect(plan.ok).toBe(false);
   });
 
   it('edits a round, keeping the old values in history', () => {
     const target = rows()[0]!;
-    const plan = planEditRound(g, rows(), players(), target, { seq: 1, winnerId: 'a', entries: { b: pts(12), c: pts(20) } }, 'ub', 99);
+    const plan = planEditRound(
+      g,
+      rows(),
+      players(),
+      target,
+      { seq: 1, winnerId: 'a', entries: { b: pts(12), c: pts(20) } },
+      'ub',
+      99,
+    );
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.value.id).toBe('r1');
@@ -207,7 +257,15 @@ describe('writing rounds', () => {
 
   it('refuses an edit that breaks the rounds after it', () => {
     // Putting c out in round 1 leaves round 2 with an entry for someone who is no longer playing.
-    const plan = planEditRound(g, rows(), players(), rows()[0]!, { seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(60) } }, 'ua', 1);
+    const plan = planEditRound(
+      g,
+      rows(),
+      players(),
+      rows()[0]!,
+      { seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(60) } },
+      'ua',
+      1,
+    );
     expect(plan).toMatchObject({ ok: false });
     expect(!plan.ok && plan.error).toContain("doesn't fit");
   });
@@ -243,9 +301,7 @@ describe('rejoin', () => {
   it('uses the stored id for a merged guest', () => {
     const p = { ...players(), x: person('Guest Cy', { mergedInto: 'c' }) };
     const gm = game({ seatOrder: ['a', 'b', 'x'] });
-    const rs = [
-      row('r1', { seq: 1, winnerId: 'a', entries: { b: pts(10), x: pts(60) } }),
-    ];
+    const rs = [row('r1', { seq: 1, winnerId: 'a', entries: { b: pts(10), x: pts(60) } })];
     const plan = planRejoin(gm, rs, p, 'c', 0, 'ua', 1);
     expect(plan.ok && plan.value.doc.rejoins[0]!.playerId).toBe('x');
   });
@@ -279,7 +335,11 @@ describe('scrap and restore', () => {
   });
 
   it('restores the earliest scrapped round first', () => {
-    const rs = [rows()[0]!, withScrap(rows()[1]!), withScrap(row('r3', { seq: 3, winnerId: 'a', entries: { b: pts(1) } }))];
+    const rs = [
+      rows()[0]!,
+      withScrap(rows()[1]!),
+      withScrap(row('r3', { seq: 3, winnerId: 'a', entries: { b: pts(1) } })),
+    ];
     expect(restorableRow(rs)?.id).toBe('r2');
     const plan = planRestore(rs, 'ub', 9);
     expect(plan.ok && plan.value[0]!.id).toBe('r2');
@@ -288,7 +348,11 @@ describe('scrap and restore', () => {
   });
 
   it('cannot restore after a new round was entered', () => {
-    const rs = [rows()[0]!, withScrap(rows()[1]!), row('r3', { seq: 3, winnerId: 'a', entries: { b: pts(1), c: pts(1) } })];
+    const rs = [
+      rows()[0]!,
+      withScrap(rows()[1]!),
+      row('r3', { seq: 3, winnerId: 'a', entries: { b: pts(1), c: pts(1) } }),
+    ];
     expect(restorableRow(rs)).toBeUndefined();
   });
 });
@@ -309,7 +373,12 @@ describe('nights', () => {
     computedAt: 1,
   });
   const at = (y: number, m: number, d: number, h = 20) => new Date(y, m - 1, d, h).getTime();
-  const gameRow = (id: string, createdAt: number, status: GameDoc['status'], nets?: Record<string, number>): GameRow => ({
+  const gameRow = (
+    id: string,
+    createdAt: number,
+    status: GameDoc['status'],
+    nets?: Record<string, number>,
+  ): GameRow => ({
     id,
     doc: game({ createdAt, status, summary: nets ? summary(nets) : null }),
   });
@@ -324,7 +393,7 @@ describe('nights', () => {
     expect(out[0]!.games.map((g) => g.id)).toEqual(['g2', 'g3']);
   });
 
-  it('adds up each player\'s net and says who owes whom', () => {
+  it("adds up each player's net and says who owes whom", () => {
     const [night] = nights([
       gameRow('g2', at(2026, 10, 3, 19), 'finished', { a: -10, b: 20, c: -10 }),
       gameRow('g3', at(2026, 10, 3, 22), 'finished', { a: 20, b: -10, c: -10 }),
@@ -362,7 +431,7 @@ describe('names', () => {
     r: person('Retired', { retired: true }),
   };
 
-  it('shows a merged guest under the member\'s name', () => {
+  it("shows a merged guest under the member's name", () => {
     expect(playerNames(p).g).toBe('Asha');
     expect(playerNames(p).b).toBe('Bo');
   });
@@ -376,7 +445,9 @@ describe('names', () => {
   });
 
   it('puts names into engine messages', () => {
-    expect(describeError('Missing entry for b and a', { a: 'Asha', b: 'Bo' })).toBe('Missing entry for Bo and Asha');
+    expect(describeError('Missing entry for b and a', { a: 'Asha', b: 'Bo' })).toBe(
+      'Missing entry for Bo and Asha',
+    );
   });
 });
 

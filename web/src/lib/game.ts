@@ -26,11 +26,15 @@ export type PlayerMap = Record<string, PlayerDoc>;
 export const bySeq = (rows: RoundRow[]): RoundRow[] =>
   [...rows].sort((a, b) => a.doc.seq - b.doc.seq);
 
-export const liveRows = (rows: RoundRow[]): RoundRow[] => bySeq(rows).filter((r) => !r.doc.scrapped);
+export const liveRows = (rows: RoundRow[]): RoundRow[] =>
+  bySeq(rows).filter((r) => !r.doc.scrapped);
 
 /** Replays a game as members see it: merged guests count as the member they were merged into. */
 export function gameState(game: GameDoc, rows: RoundRow[], players: PlayerMap): GameState {
-  const input = gameInput(game, rows.map((r) => r.doc));
+  const input = gameInput(
+    game,
+    rows.map((r) => r.doc),
+  );
   return replay(input, { resolveId: makeResolveId(players) });
 }
 

@@ -25,6 +25,7 @@
     "build": "npm run build --workspaces --if-present",
     "check": "npm run lint && npm run format:check && npm run typecheck && npm run test",
     "dev": "npm run dev --workspace web",
+    "seed:demo": "esbuild scripts/seed-demo.ts --bundle --platform=node --format=esm --target=node22 --outfile=scripts/.seed-demo.mjs --external:firebase-admin --external:firebase-functions --log-level=warning && node scripts/.seed-demo.mjs",
     "emulators": "firebase emulators:start --project demo-rummytracker"
   },
   "devDependencies": {

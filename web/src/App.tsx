@@ -10,6 +10,7 @@ import { LeaguesScreen } from './screens/LeaguesScreen';
 import { MembersTab } from './screens/MembersTab';
 import { NewGameScreen } from './screens/NewGameScreen';
 import { PlayersTab } from './screens/PlayersTab';
+import { StatsTab } from './screens/StatsTab';
 import { SignInScreen } from './screens/SignInScreen';
 import { Loading } from './ui';
 
@@ -24,6 +25,7 @@ function Routed() {
       <Route path="/l/:leagueId" element={<LeagueLayout />}>
         <Route element={<LeagueTabs />}>
           <Route index element={<GamesTab />} />
+          <Route path="stats" element={<StatsTab />} />
           <Route path="players" element={<PlayersTab />} />
           <Route path="members" element={<MembersTab />} />
         </Route>

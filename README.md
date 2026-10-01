@@ -45,5 +45,14 @@ With no API key configured, the app talks to the emulators. The sign-in page the
 and back in as another name to be a second member). To use the real project instead, copy
 `web/.env.example` to `web/.env.local` and fill in the web app config from the Firebase console.
 
+To fill the emulator with a demo league (five players and 14 finished games over several months, so the
+Stats tab has something to show), run this once the emulators are up, then sign in as the tester "Asha":
+
+```bash
+npm run seed:demo
+```
+
+It only talks to the emulators and cannot touch the real project.
+
 Rebuild the functions bundle after changing `functions/`, `engine/` or `data/`; the emulator does not
 rebuild it for you.

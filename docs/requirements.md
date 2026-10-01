@@ -115,6 +115,15 @@ All-time by default, with a time filter on every view: this month, last 3 months
 - **Trends:** net money over time per player, and games won over time.
 - Scrapped rounds are excluded from all stats.
 
+How the numbers are worked out (all from cached game summaries, never from rounds):
+
+- Only finished games count, filtered by the day the game was started. "This month" starts on the 1st, "last 3 months" starts three months back from today, "this year" starts on 1 January, and a custom range includes both end dates.
+- **Win rate** is wins (outright plus shared) divided by games played. Outright and shared wins are also shown separately.
+- **Average finish** is the mean finishing position, where 1 is first and tied players share a position; lower is better.
+- **Net money** is money won minus every buy-in paid, including rejoins.
+- **Trends** are running totals over the games in the chosen range, one point per game. A player's line starts at their first game in the range.
+- Charts show the eight most active players over the whole league history, each keeping the same colour whatever the time range. Anyone beyond eight appears in the tables only.
+
 ## Sync, history and non-functional
 
 - **Live sync:** open games update in real time on every member's device.

@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "module": "NodeNext", "moduleResolution": "NodeNext" },
-  "include": ["src"]
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src", "vitest.emulator.config.ts", "vitest.e2e.config.ts"]
 }

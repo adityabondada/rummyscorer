@@ -5,6 +5,7 @@ import {
   DataError,
   gameInput,
   gamePath,
+  makeResolveId,
   newRoundDoc,
   parseGame,
   parseLeague,
@@ -216,6 +217,30 @@ describe('replaying stored games', () => {
     const state = replay(gameInput(game(), rounds));
     const stored = game({ status: 'finished', summary: summaryFromState(state, 7) });
     expect(parseGame(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
+  });
+});
+
+describe('makeResolveId', () => {
+  it('leaves unmerged players alone, including unknown ones', () => {
+    const resolve = makeResolveId({ a: { mergedInto: null } });
+    expect(resolve('a')).toBe('a');
+    expect(resolve('missing')).toBe('missing');
+  });
+
+  it('follows a merge, and a chain of merges, to the end', () => {
+    const resolve = makeResolveId({
+      guest: { mergedInto: 'older' },
+      older: { mergedInto: 'member' },
+      member: { mergedInto: null },
+    });
+    expect(resolve('guest')).toBe('member');
+    expect(resolve('older')).toBe('member');
+    expect(resolve('member')).toBe('member');
+  });
+
+  it('stops instead of looping on a cycle', () => {
+    const resolve = makeResolveId({ a: { mergedInto: 'b' }, b: { mergedInto: 'a' } });
+    expect(['a', 'b']).toContain(resolve('a'));
   });
 });
 

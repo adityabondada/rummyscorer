@@ -5,7 +5,7 @@ rules_version = '2';
 // (wrong shapes, impersonation, rewriting history) rather than abuse.
 //
 // Fields marked "functions only" are written with the Admin SDK, which bypasses these rules:
-//   leagues:  everything after creation (joinLeague, removeMember, regenerateInvite)
+//   leagues:  everything (createLeague, joinLeague, removeMember, regenerateInvite)
 //   players:  linkedUid, mergedInto (mergePlayers, unmergePlayers, joinLeague)
 //   games:    status, summary, summaryError (onRoundWrite)
 //   log:      all writes
@@ -33,17 +33,9 @@ service cloud.firestore {
       // Lets a user list their leagues with where('memberUids', 'array-contains', uid).
       allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
 
-      // Anyone signed in can start a league and becomes its only member and admin.
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['name', 'adminUid', 'inviteCode', 'memberUids', 'createdAt'])
-        && request.resource.data.keys().hasAll(['name', 'adminUid', 'inviteCode', 'memberUids', 'createdAt'])
-        && nonEmptyString(request.resource.data.name, 60)
-        && request.resource.data.adminUid == request.auth.uid
-        && request.resource.data.memberUids == [request.auth.uid]
-        && nonEmptyString(request.resource.data.inviteCode, 32)
-        && request.resource.data.createdAt is number;
-
-      allow update, delete: if false;
+      // Leagues are created and changed by functions only (createLeague, joinLeague, ...), so
+      // the creator always gets a player profile and invite codes stay unique.
+      allow create, update, delete: if false;
 
       match /players/{playerId} {
         allow read: if isMember(leagueId);

@@ -1,0 +1,10 @@
+rules_version = '2';
+
+// Placeholder: deny everything until phase 3 (data layer and rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

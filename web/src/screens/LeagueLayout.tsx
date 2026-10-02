@@ -22,6 +22,7 @@ export const useLeagueContext = () => useOutletContext<LeagueContext>();
 
 const tabs = [
   { to: '', label: 'Games', end: true },
+  { to: 'stats', label: 'Stats', end: false },
   { to: 'players', label: 'Players', end: false },
   { to: 'members', label: 'Members', end: false },
 ];

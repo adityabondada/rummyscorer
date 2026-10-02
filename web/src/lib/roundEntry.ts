@@ -9,7 +9,8 @@ import {
 } from '@rummy/engine';
 
 /** What a member has typed or tapped for one player, before it becomes an engine entry. */
-export type FormEntry = { kind: 'points'; points: string } | { kind: 'drop' } | { kind: 'middleDrop' };
+export type FormEntry =
+  { kind: 'points'; points: string } | { kind: 'drop' } | { kind: 'middleDrop' };
 
 export interface RoundForm {
   winnerId: PlayerId | null;
@@ -24,7 +25,8 @@ export const emptyForm = (): RoundForm => ({ winnerId: null, entries: {} });
 export function formFromRound(round: Round): RoundForm {
   const entries: Record<PlayerId, FormEntry> = {};
   for (const [id, entry] of Object.entries(round.entries)) {
-    entries[id] = entry.kind === 'points' ? { kind: 'points', points: String(entry.points) } : entry;
+    entries[id] =
+      entry.kind === 'points' ? { kind: 'points', points: String(entry.points) } : entry;
   }
   return { winnerId: round.winnerId, entries };
 }

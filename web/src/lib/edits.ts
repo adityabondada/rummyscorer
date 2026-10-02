@@ -1,6 +1,19 @@
-import { EngineError, latestScrappable, nextRestorable, nextSeq, rollbackTo, scrapLatest } from '@rummy/engine';
+import {
+  EngineError,
+  latestScrappable,
+  nextRestorable,
+  nextSeq,
+  rollbackTo,
+  scrapLatest,
+} from '@rummy/engine';
 import type { PlayerId, Round } from '@rummy/engine';
-import { changeRoundDoc, newRoundDoc, roundDocToEngine, type GameDoc, type RoundDoc } from '@rummy/data';
+import {
+  changeRoundDoc,
+  newRoundDoc,
+  roundDocToEngine,
+  type GameDoc,
+  type RoundDoc,
+} from '@rummy/data';
 import {
   bySeq,
   gameState,
@@ -154,7 +167,12 @@ export function planRollback(
   now: number,
 ): Plan<RoundWrite[]> {
   return guarded(() =>
-    diffScrapped(rows, rollbackTo(engineRounds(rows), toSeq, { by: uid, at: now, reason }), uid, now),
+    diffScrapped(
+      rows,
+      rollbackTo(engineRounds(rows), toSeq, { by: uid, at: now, reason }),
+      uid,
+      now,
+    ),
   );
 }
 
@@ -164,8 +182,6 @@ export function planRestore(rows: RoundRow[], uid: string, now: number): Plan<Ro
   if (!target) return fail('There is no round that can be restored');
   return {
     ok: true,
-    value: [
-      { id: target.id, doc: changeRoundDoc(target.doc, { scrapped: null }, uid, now) },
-    ],
+    value: [{ id: target.id, doc: changeRoundDoc(target.doc, { scrapped: null }, uid, now) }],
   };
 }

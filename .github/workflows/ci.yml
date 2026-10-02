@@ -59,8 +59,9 @@ jobs:
   preview:
     name: Hosting preview
     needs: [check]
-    # Pull requests from forks can't get a token to deploy with, and shouldn't.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Pull requests from forks can't get a token to deploy with, and shouldn't. Skipped (not failed)
+    # until the Google sign-in in docs/deployment.md is set up and WIF_PROVIDER exists.
+    if: github.event.pull_request.head.repo.full_name == github.repository && vars.WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read

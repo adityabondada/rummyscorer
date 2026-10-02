@@ -54,6 +54,8 @@ jobs:
   deploy:
     name: Deploy to Firebase
     needs: [changes, check]
+    # Skipped (not failed) until the Google sign-in in docs/deployment.md is set up.
+    if: vars.WIF_PROVIDER != ''
     runs-on: ubuntu-latest
     # Deploys need the production environment, where an approval rule can be added if wanted.
     environment: production

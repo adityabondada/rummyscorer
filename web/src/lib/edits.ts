@@ -61,7 +61,7 @@ export function planNewRound(
   return problem ? fail(problem) : { ok: true, value: { id: null, doc } };
 }
 
-/** Changes the winner and entries of an existing round, keeping its rejoins and its history. */
+/** Changes the winner (or penalty) and entries of an existing round, keeping its rejoins and its history. */
 export function planEditRound(
   game: GameDoc,
   rows: RoundRow[],
@@ -74,7 +74,7 @@ export function planEditRound(
   const stored = toStoredRound(round, storedIds(game, players));
   const doc = changeRoundDoc(
     target.doc,
-    { winnerId: stored.winnerId, entries: stored.entries },
+    { winnerId: stored.winnerId, penalty: stored.penalty ?? null, entries: stored.entries },
     uid,
     now,
   );

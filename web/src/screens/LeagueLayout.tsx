@@ -25,7 +25,6 @@ const tabs = [
   { to: '', label: 'Games', end: true, suit: 'spade' as const },
   { to: 'stats', label: 'Stats', end: false, suit: 'diamond' as const },
   { to: 'players', label: 'Players', end: false, suit: 'club' as const },
-  { to: 'members', label: 'Members', end: false, suit: 'heart' as const },
 ];
 
 export function LeagueLayout() {
@@ -58,7 +57,7 @@ export function LeagueLayout() {
   return <Outlet context={context} />;
 }
 
-/** The league's home: its name and the Games, Players and Members tabs. */
+/** The league's home: its name and the Games, Stats and Players tabs. */
 export function LeagueTabs() {
   const context = useLeagueContext();
   return (

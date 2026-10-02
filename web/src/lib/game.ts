@@ -67,7 +67,8 @@ const mapKeys = <T>(map: Record<PlayerId, T>, to: (id: PlayerId) => PlayerId) =>
 export function toStoredRound(round: Round, to: (id: PlayerId) => PlayerId): Round {
   return {
     ...round,
-    winnerId: to(round.winnerId),
+    winnerId: round.winnerId === null ? null : to(round.winnerId),
+    penalty: round.penalty ? { ...round.penalty, playerId: to(round.penalty.playerId) } : null,
     entries: mapKeys(round.entries, to),
     rejoins: round.rejoins?.map((r: Rejoin) => ({ ...r, playerId: to(r.playerId) })),
   };
@@ -78,7 +79,8 @@ export function toResolvedRound(round: Round, players: PlayerMap): Round {
   const resolve = makeResolveId(players);
   return {
     ...round,
-    winnerId: resolve(round.winnerId),
+    winnerId: round.winnerId === null ? null : resolve(round.winnerId),
+    penalty: round.penalty ? { ...round.penalty, playerId: resolve(round.penalty.playerId) } : null,
     entries: mapKeys(round.entries, resolve),
     rejoins: round.rejoins?.map((r: Rejoin) => ({ ...r, playerId: resolve(r.playerId) })),
   };

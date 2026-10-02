@@ -30,6 +30,19 @@ service cloud.firestore {
       return value is string && value.size() > 0 && value.size() <= maxLength;
     }
 
+    // A round either has a winner, or is a penalty round: nobody won, and one player took the
+    // penalty. Rounds saved before penalties existed have no penalty field.
+    function roundResult(round) {
+      let penalty = round.get('penalty', null);
+      return (round.winnerId is string && penalty == null)
+        || (round.winnerId == null
+            && penalty is map
+            && penalty.playerId is string
+            && penalty.points is int
+            && penalty.points > 0
+            && penalty.reason in ['wrongShow', 'error']);
+    }
+
     match /leagues/{leagueId} {
       // Lets a user list their leagues with where('memberUids', 'array-contains', uid).
       allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
@@ -90,11 +103,11 @@ service cloud.firestore {
           allow read: if isMember(leagueId);
 
           allow create: if isMember(leagueId)
-            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
+            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'penalty', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
             && request.resource.data.keys().hasAll(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
             && request.resource.data.seq is int
             && request.resource.data.seq > 0
-            && request.resource.data.winnerId is string
+            && roundResult(request.resource.data)
             && request.resource.data.entries is map
             && request.resource.data.rejoins is list
             && request.resource.data.scrapped == null
@@ -105,9 +118,9 @@ service cloud.firestore {
           // Every change (edit, scrap, restore) appends exactly one history entry made by the
           // caller and keeps all earlier entries untouched, so prior values are never lost.
           allow update: if isMember(leagueId)
-            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
+            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'penalty', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
             && request.resource.data.seq == resource.data.seq
-            && request.resource.data.winnerId is string
+            && roundResult(request.resource.data)
             && request.resource.data.entries is map
             && request.resource.data.rejoins is list
             && (request.resource.data.scrapped == null

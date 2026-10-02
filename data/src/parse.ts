@@ -1,4 +1,10 @@
-import { validateSettings, type GameSettings, type Rejoin, type RoundEntry } from '@rummy/engine';
+import {
+  validateSettings,
+  type GameSettings,
+  type Penalty,
+  type Rejoin,
+  type RoundEntry,
+} from '@rummy/engine';
 import type {
   GameDoc,
   GameSummaryDoc,
@@ -115,10 +121,28 @@ function parseScrapped(value: unknown): RoundSnapshot['scrapped'] {
   });
 }
 
+function parsePenalty(value: unknown): Penalty | null {
+  return nullable(value, (v) => {
+    const d = obj(v, 'penalty');
+    const reason = str(d.reason, 'penalty.reason');
+    if (reason !== 'wrongShow' && reason !== 'error') {
+      throw new DataError('penalty.reason is not a known reason');
+    }
+    return {
+      playerId: str(d.playerId, 'penalty.playerId'),
+      points: num(d.points, 'penalty.points'),
+      reason,
+    };
+  });
+}
+
 function parseSnapshot(value: unknown, what: string): RoundSnapshot {
   const d = obj(value, what);
+  const penalty = parsePenalty(d.penalty ?? null);
   return {
-    winnerId: str(d.winnerId, 'winnerId'),
+    // A round with a penalty has no winner. Rounds saved before penalties existed have no penalty.
+    winnerId: penalty ? null : str(d.winnerId, 'winnerId'),
+    penalty,
     entries: parseEntries(d.entries),
     rejoins: parseRejoins(d.rejoins),
     scrapped: parseScrapped(d.scrapped),
@@ -176,6 +200,9 @@ function parseStats(value: unknown, what: string): PlayerStatsDoc {
     dropsTaken: num(d.dropsTaken, 'dropsTaken'),
     rejoins: num(d.rejoins, 'rejoins'),
     buyIns: num(d.buyIns, 'buyIns'),
+    // Missing on summaries saved before these were tracked.
+    ...(d.roundsWon === undefined ? {} : { roundsWon: num(d.roundsWon, 'roundsWon') }),
+    ...(d.penalties === undefined ? {} : { penalties: num(d.penalties, 'penalties') }),
   };
 }
 

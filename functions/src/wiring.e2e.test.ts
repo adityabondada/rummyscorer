@@ -47,7 +47,14 @@ async function call(name: string, data: unknown, user?: User) {
 
 /** What the callables return, as one loose shape covering every function the tests call. */
 interface CallBody {
-  result: { leagueId: string; inviteCode: string; playerId: string; ok?: boolean };
+  result: {
+    leagueId: string;
+    inviteCode: string;
+    playerId: string;
+    ok?: boolean;
+    games?: number;
+    updated?: number;
+  };
   error?: { status?: string };
 }
 
@@ -254,5 +261,53 @@ describe('deleteGameFn', () => {
     await call('deleteGameFn', { leagueId, gameId }, admin);
     const again = await call('deleteGameFn', { leagueId, gameId }, admin);
     expect(again.body.error?.status).toBe('NOT_FOUND');
+  });
+});
+
+describe('recomputeLeagueFn', () => {
+  async function leagueWithFinishedGame() {
+    const created = await call('createLeagueFn', { name: 'Stats', displayName: 'Admin' }, admin);
+    const { leagueId, inviteCode, playerId: a } = created.body.result;
+    const joined = await call('joinLeagueFn', { code: inviteCode, displayName: 'Ravi' }, ravi);
+    const b = joined.body.result.playerId;
+    const gameId = await addGame(db, leagueId, [a, b], { settings: smallSettings() });
+    await addRound(db, leagueId, gameId, { seq: 1, winnerId: a, entries: { [b]: pts(10) } });
+    await addRound(db, leagueId, gameId, { seq: 2, winnerId: a, entries: { [b]: pts(60) } });
+    await until(
+      () => game(leagueId, gameId),
+      (g) => g.status === 'finished',
+    );
+    return { leagueId, gameId, a, b };
+  }
+
+  it('refuses a caller who is not signed in', async () => {
+    const { leagueId } = await leagueWithFinishedGame();
+    const res = await call('recomputeLeagueFn', { leagueId });
+    expect(res.body.error?.status).toBe('UNAUTHENTICATED');
+  });
+
+  it('refuses someone who is not in the league', async () => {
+    const { leagueId } = await leagueWithFinishedGame();
+    const outsider = await signUp('outsider2@example.com', 'Outsider');
+    const res = await call('recomputeLeagueFn', { leagueId }, outsider);
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+
+  it('fills in rounds won on a summary saved without it, for any member', async () => {
+    const { leagueId, gameId, a, b } = await leagueWithFinishedGame();
+    const ref = db.doc(gamePath(leagueId, gameId));
+    const summary = (await ref.get()).data()!.summary;
+    for (const p of Object.values<Record<string, unknown>>(summary.players)) {
+      delete p.roundsWon;
+      delete p.penalties;
+    }
+    await ref.update({ summary });
+
+    const res = await call('recomputeLeagueFn', { leagueId }, ravi);
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual({ games: 1, updated: 1 });
+    const players = (await ref.get()).data()!.summary.players;
+    expect(players[a]).toMatchObject({ roundsWon: 2, penalties: 0 });
+    expect(players[b]).toMatchObject({ roundsWon: 0, penalties: 0 });
   });
 });

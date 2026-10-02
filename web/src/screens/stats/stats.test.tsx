@@ -30,6 +30,12 @@ const player = (id: string, over: Partial<PlayerStats>): PlayerStats => ({
   roundsPlayed: 12,
   dropsTaken: 3,
   rejoins: 1,
+  roundsWon: 4,
+  roundsWithData: 12,
+  roundWinRate: 1 / 3,
+  penalties: 1,
+  bestStreak: 1,
+  currentStreak: 0,
   ...over,
 });
 
@@ -42,6 +48,12 @@ const rows = [
     winRate: 0.75,
     avgPosition: 1.5,
     roundsPlayed: 10,
+    roundsWon: 8,
+    roundsWithData: 10,
+    roundWinRate: 0.8,
+    penalties: 0,
+    bestStreak: 3,
+    currentStreak: 2,
   }),
   player('b', { net: -10, wins: 1, winRate: 0.25, avgPosition: 2.5, roundsPlayed: 30 }),
   player('c', {
@@ -51,6 +63,10 @@ const rows = [
     winRate: 0,
     avgPosition: 3.2,
     roundsPlayed: 20,
+    roundsWon: 0,
+    roundWinRate: 0,
+    penalties: 2,
+    bestStreak: 0,
   }),
 ];
 
@@ -77,7 +93,13 @@ describe('FilterBar', () => {
     );
   }
 
-  it('offers every time range, with all time selected to begin with', () => {
+  it('offers all time, this month, this year and a custom range', () => {
+    render(<Harness />);
+    expect(PRESETS.map((p) => p.label)).toEqual(['All time', 'This month', 'This year', 'Custom']);
+    expect(screen.queryByRole('button', { name: 'Last 3 months' })).not.toBeInTheDocument();
+  });
+
+  it('starts with all time selected', () => {
     render(<Harness />);
     for (const p of PRESETS)
       expect(screen.getByRole('button', { name: p.label })).toBeInTheDocument();
@@ -94,9 +116,9 @@ describe('FilterBar', () => {
   it('switches range', async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Last 3 months' }));
-    expect(onChange).toHaveBeenCalledWith('3months');
-    expect(screen.getByRole('button', { name: 'Last 3 months' })).toHaveAttribute(
+    await userEvent.setup().click(screen.getByRole('button', { name: 'This year' }));
+    expect(onChange).toHaveBeenCalledWith('year');
+    expect(screen.getByRole('button', { name: 'This year' })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -130,36 +152,59 @@ describe('Leaderboard', () => {
     expect(bodyNames()[0]).toBe('Asha');
   });
 
-  it('shows games, wins with shared wins, win rate, average finish and net', () => {
+  it('shows net, games won with the shared ones, rounds won and the round win rate', () => {
     render(<Leaderboard rows={rows} names={names} />);
     const [leaderboard] = screen.getAllByRole('table');
     const asha = within(leaderboard!).getByRole('row', { name: /Asha/ });
-    // Net first, so it stays on screen on a phone; then games, wins, shared wins, rate, finish.
+    // Net first, so it stays on screen on a phone.
     expect(
       within(asha)
         .getAllByRole('cell')
         .map((c) => c.textContent),
-    ).toEqual(['+$20', '4', '2', '1', '75%', '1.5']);
-    expect(screen.getAllByRole('columnheader')[1]).toHaveTextContent('Net');
+    ).toEqual(['+$20', '3 (1 shared)', '8', '80%']);
+    expect(
+      within(leaderboard!)
+        .getAllByRole('columnheader')
+        .map((h) => h.textContent?.replace(/[↑↓]/g, '').trim()),
+    ).toEqual(['Player', 'Net', 'Games won', 'Rounds won', 'Round win %']);
     expect(
       within(within(leaderboard!).getByRole('row', { name: /Bo/ })).getByText('−$10'),
     ).toBeInTheDocument();
+  });
+
+  it('shows games won with no brackets when none were shared', () => {
+    render(<Leaderboard rows={rows} names={names} />);
+    const bo = within(screen.getAllByRole('table')[0]!).getByRole('row', { name: /Bo/ });
+    expect(within(bo).getAllByRole('cell')[1]).toHaveTextContent(/^1$/);
+  });
+
+  it('shows a dash for round stats when the games have none yet', () => {
+    const older = player('a', { roundsWon: 0, roundsWithData: 0, roundWinRate: 0 });
+    render(<Leaderboard rows={[older]} names={names} />);
+    const cells = within(screen.getAllByRole('table')[0]!)
+      .getAllByRole('cell')
+      .map((c) => c.textContent);
+    expect(cells.slice(2)).toEqual(['–', '–']);
   });
 
   it('re-sorts when a heading is clicked, and best average finish is the lowest number', async () => {
     render(<Leaderboard rows={rows} names={names} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /Avg finish/ }));
+    expect(
+      Array.from(screen.getAllByRole('table')[1]!.querySelectorAll('tbody th')).map(
+        (th) => th.textContent,
+      ),
+    ).toEqual(['Asha', 'Bo', 'Cy']);
+    await user.click(screen.getByRole('button', { name: /Round win %/ }));
     expect(bodyNames()).toEqual(['Asha', 'Bo', 'Cy']);
-    await user.click(screen.getByRole('button', { name: /Win rate/ }));
-    expect(bodyNames()).toEqual(['Asha', 'Bo', 'Cy']);
-    expect(screen.getAllByRole('columnheader', { name: /Win rate/ })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('columnheader', { name: /Round win %/ })[0]).toHaveAttribute(
       'aria-sort',
       'descending',
     );
     expect(screen.getAllByRole('columnheader', { name: /Avg finish/ })[0]).toHaveAttribute(
       'aria-sort',
-      'none',
+      'ascending',
     );
   });
 
@@ -169,19 +214,71 @@ describe('Leaderboard', () => {
     expect(bodyNames()).toEqual(['Asha', 'Bo', 'Cy']);
   });
 
-  it('has a separate table for rounds survived, drops used and rejoins', async () => {
+  it('has a second table with games, average finish, best streak, penalties, drops and rejoins, shown straight away', () => {
     render(<Leaderboard rows={rows} names={names} />);
-    const [, gameStats] = screen.getAllByRole('table');
-    expect(within(gameStats!).getByRole('button', { name: /Rounds survived/ })).toBeInTheDocument();
-    expect(within(gameStats!).getByRole('button', { name: /Drops used/ })).toBeInTheDocument();
-    expect(within(gameStats!).getByRole('button', { name: /Rejoins/ })).toBeInTheDocument();
-    // Starts sorted by rounds survived, most first: Bo 30, Cy 20, Asha 10.
-    expect(gameStats!.querySelectorAll('tbody th')[0]!.textContent).toBe('Bo');
+    const [, more] = screen.getAllByRole('table');
+    expect(within(more!).getByText('More stats')).toBeInTheDocument();
+    for (const label of [
+      /Games$/,
+      /Avg finish/,
+      /Best streak/,
+      /Penalties/,
+      /Drops used/,
+      /Rejoins/,
+    ]) {
+      expect(within(more!).getByRole('button', { name: label })).toBeInTheDocument();
+    }
+    const asha = within(more!).getByRole('row', { name: /Asha/ });
+    expect(
+      within(asha)
+        .getAllByRole('cell')
+        .map((c) => c.textContent),
+    ).toEqual(['4', '1.5', '3', '0', '3', '1']);
+  });
+
+  it('does not make anyone drill into a player: no links, no buttons on names, no details', () => {
+    render(<Leaderboard rows={rows} names={names} />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Asha/ })).not.toBeInTheDocument();
+    expect(document.querySelector('details')).toBeNull();
   });
 
   it('shows every player once, even with no wins', () => {
     render(<Leaderboard rows={rows} names={names} />);
     expect(screen.getAllByRole('row', { name: /Cy/ })).toHaveLength(2);
+  });
+});
+
+describe('streaks', () => {
+  it('names the longest run and who is on a run now', () => {
+    render(<Leaderboard rows={rows} names={names} />);
+    const card = screen.getByRole('heading', { name: 'Streaks' }).closest('section')!;
+    expect(card).toHaveTextContent('Longest: Asha, 3 games won in a row');
+    expect(card).toHaveTextContent('On a streak now: Asha, 2 games won in a row');
+  });
+
+  it('shares a streak between players on the same run', () => {
+    const tied = [
+      player('a', { bestStreak: 3, currentStreak: 3 }),
+      player('b', { bestStreak: 3, currentStreak: 3 }),
+      player('c', { bestStreak: 1 }),
+    ];
+    render(<Leaderboard rows={tied} names={names} />);
+    const card = screen.getByRole('heading', { name: 'Streaks' }).closest('section')!;
+    expect(card).toHaveTextContent('Longest: Asha and Bo, 3 games won in a row each');
+    expect(card).toHaveTextContent('On a streak now: Asha and Bo, 3 games won in a row each');
+  });
+
+  it('leaves out the current streak when nobody is on one', () => {
+    render(<Leaderboard rows={[player('a', { bestStreak: 4, currentStreak: 0 })]} names={names} />);
+    const card = screen.getByRole('heading', { name: 'Streaks' }).closest('section')!;
+    expect(card).toHaveTextContent('Longest: Asha, 4 games won in a row');
+    expect(card).not.toHaveTextContent('On a streak now');
+  });
+
+  it('is not shown when nobody has won two games in a row', () => {
+    render(<Leaderboard rows={[player('a', { bestStreak: 1, currentStreak: 1 })]} names={names} />);
+    expect(screen.queryByRole('heading', { name: 'Streaks' })).not.toBeInTheDocument();
   });
 });
 
@@ -193,6 +290,7 @@ describe('TrendChart', () => {
       at: new Date(2026, 8, 3).getTime(),
       net: { a: 20, b: -10 },
       wins: { a: 1, b: 0 },
+      roundWins: { a: 3, b: 1 },
     },
     {
       game: 2,
@@ -200,6 +298,7 @@ describe('TrendChart', () => {
       at: new Date(2026, 8, 10).getTime(),
       net: { a: 10, b: 0, c: 5 },
       wins: { a: 1, b: 1, c: 0 },
+      roundWins: { a: 5, b: 4, c: 0 },
     },
   ];
   const series = [
@@ -267,6 +366,25 @@ describe('TrendChart', () => {
     );
     await user.click(screen.getByText('Show as a table'));
     expect(screen.getByRole('table', { name: 'Wins' }).textContent).not.toContain('$');
+  });
+
+  it('shows rounds won as plain counts, in the table too', async () => {
+    const user = userEvent.setup();
+    render(
+      <TrendChart
+        title="Rounds"
+        description="d"
+        metric="roundWins"
+        points={points}
+        series={series}
+      />,
+    );
+    await user.click(screen.getByText('Show as a table'));
+    const table = screen.getByRole('table', { name: 'Rounds' });
+    expect(table.textContent).not.toContain('$');
+    const [first, second] = table.querySelectorAll('tbody tr');
+    expect(first!.textContent).toContain('3');
+    expect(second!.textContent).toContain('5');
   });
 
   it('keeps eight distinct colours in a fixed order', () => {

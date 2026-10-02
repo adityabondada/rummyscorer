@@ -4,6 +4,7 @@ import {
   DataError,
   gameInput,
   gamePath,
+  gamesPath,
   makeResolveId,
   parseGame,
   parsePlayer,
@@ -16,6 +17,7 @@ import {
   type RoundDoc,
 } from '@rummy/data';
 import type { Firestore } from 'firebase-admin/firestore';
+import { readLeague, requireMember, stringArg } from './access';
 
 export type RecomputeResult = 'updated' | 'unchanged' | 'missing';
 
@@ -94,4 +96,26 @@ export function splitChanged(before: unknown, after: unknown): boolean {
       ? ((data as { split: unknown }).split ?? null)
       : null;
   return !isDeepStrictEqual(split(before), split(after));
+}
+
+/**
+ * Recalculates every finished game in a league, so summaries saved before a new number was tracked
+ * (such as rounds won) get it. Games whose summary is already right are left alone. Any member can
+ * ask, and it is safe to run again.
+ */
+export async function recomputeLeague(
+  db: Firestore,
+  uid: string,
+  args: { leagueId: unknown },
+  now: number,
+): Promise<{ games: number; updated: number }> {
+  const leagueId = stringArg(args.leagueId, 'leagueId', 128);
+  await db.runTransaction(async (tx) => requireMember(await readLeague(tx, db, leagueId), uid));
+
+  const finished = await db.collection(gamesPath(leagueId)).where('status', '==', 'finished').get();
+  let updated = 0;
+  for (const game of finished.docs) {
+    if ((await recomputeGame(db, leagueId, game.id, now)) === 'updated') updated += 1;
+  }
+  return { games: finished.size, updated };
 }

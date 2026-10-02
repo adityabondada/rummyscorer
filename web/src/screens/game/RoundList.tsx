@@ -1,6 +1,7 @@
 import type { GameState, RoundEntry, RoundRecord } from '@rummy/engine';
 import type { RoundSnapshot } from '@rummy/data';
 import { bySeq, type RoundRow } from '../../lib/game';
+import { reasonLabel } from '../../lib/roundEntry';
 import { EmptyState } from '../../suits';
 import { Badge, Button, cx } from '../../ui';
 
@@ -18,7 +19,11 @@ const entryText = (e: RoundEntry) =>
 /** "Asha won; Bo 25, Cy Drop" for a stored round, using the names at hand. */
 function snapshotText(snap: RoundSnapshot, nameOf: (id: string) => string) {
   const others = Object.entries(snap.entries).map(([id, e]) => `${nameOf(id)} ${entryText(e)}`);
-  return `${nameOf(snap.winnerId)} won; ${others.join(', ')}`;
+  if (snap.penalty) {
+    const { playerId, points, reason } = snap.penalty;
+    return `${reasonLabel(reason)}, ${nameOf(playerId)} took ${points}; ${others.join(', ')}`;
+  }
+  return `${snap.winnerId ? nameOf(snap.winnerId) : '?'} won; ${others.join(', ')}`;
 }
 
 interface Props {
@@ -76,7 +81,11 @@ export function RoundList({ rows, state, names, uidNames, onEdit }: Props) {
                   )}
                 </p>
                 <p className="text-sm text-slate-600">
-                  {record ? nameOf(record.winnerId) : '?'} won
+                  {!record
+                    ? '?'
+                    : record.penalty
+                      ? `${reasonLabel(record.penalty.reason)}: ${nameOf(record.penalty.playerId)} took ${record.penalty.points}`
+                      : `${record.winnerId ? nameOf(record.winnerId) : '?'} won`}
                 </p>
               </div>
               {onEdit && (
@@ -96,6 +105,7 @@ export function RoundList({ rows, state, names, uidNames, onEdit }: Props) {
                       className={cx(
                         'rounded-full px-2.5 py-1',
                         id === record.winnerId ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-100',
+                        id === record.penalty?.playerId && 'bg-amber-100 text-amber-900',
                         out && 'bg-red-100 text-red-900',
                       )}
                     >

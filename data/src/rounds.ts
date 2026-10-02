@@ -6,6 +6,7 @@ export function roundDocToEngine(doc: RoundDoc): Round {
   return {
     seq: doc.seq,
     winnerId: doc.winnerId,
+    penalty: doc.penalty,
     entries: doc.entries,
     rejoins: doc.rejoins,
     scrapped: doc.scrapped,
@@ -27,6 +28,7 @@ export function newRoundDoc(round: Round, uid: string, now: number): RoundDoc {
   return {
     seq: round.seq,
     winnerId: round.winnerId,
+    penalty: round.penalty ?? null,
     entries: round.entries,
     rejoins: round.rejoins ?? [],
     scrapped: null,
@@ -59,6 +61,7 @@ export function changeRoundDoc(
         at: now,
         prev: {
           winnerId: prev.winnerId,
+          penalty: prev.penalty,
           entries: prev.entries,
           rejoins: prev.rejoins,
           scrapped: prev.scrapped,

@@ -36,7 +36,7 @@ const SURFACE = '#ffffff';
 /** With this many series or fewer, each line is also labelled at its end. */
 const DIRECT_LABEL_LIMIT = 4;
 
-export type Metric = 'net' | 'wins';
+export type Metric = 'net' | 'wins' | 'roundWins';
 
 const format = (metric: Metric, value: number) => (metric === 'net' ? money(value) : String(value));
 
@@ -174,7 +174,7 @@ export function TrendChart({ title, description, metric, points, series }: Props
                   name={s.name}
                   stroke={color}
                   strokeWidth={2}
-                  type={metric === 'wins' ? 'stepAfter' : 'linear'}
+                  type={metric === 'net' ? 'linear' : 'stepAfter'}
                   isAnimationActive={false}
                   connectNulls={false}
                   dot={{ r: 4, fill: color, stroke: SURFACE, strokeWidth: 2 }}

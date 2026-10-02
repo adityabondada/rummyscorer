@@ -6,7 +6,7 @@ import { setGlobalOptions } from 'firebase-functions/v2';
 import { deleteGame } from './games';
 import { createLeague, joinLeague, regenerateInvite, removeMember } from './leagues';
 import { mergePlayers, unmergePlayers } from './merge';
-import { recomputeGame, splitChanged } from './recompute';
+import { recomputeGame, recomputeLeague, splitChanged } from './recompute';
 
 initializeApp();
 
@@ -102,6 +102,10 @@ export const deleteGameFn = onCall(callableOptions, async (request) => {
   );
   return { ok: true };
 });
+
+export const recomputeLeagueFn = onCall(callableOptions, (request) =>
+  recomputeLeague(db(), callerUid(request), { leagueId: request.data?.leagueId }, Date.now()),
+);
 
 /** A round was entered, edited, scrapped or restored: refresh the game's status and summary. */
 export const onRoundWrite = onDocumentWritten(

@@ -38,4 +38,8 @@ export const deleteGame = callable<{ leagueId: string; gameId: string }, { ok: t
   'deleteGameFn',
 );
 
+export const recomputeLeague = callable<{ leagueId: string }, { games: number; updated: number }>(
+  'recomputeLeagueFn',
+);
+
 export { errorMessage } from './lib/errors';

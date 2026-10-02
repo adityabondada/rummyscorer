@@ -122,6 +122,7 @@ describe('race to the limit', () => {
         doc: {
           seq: r.seq,
           winnerId: r.winnerId,
+          penalty: r.penalty ?? null,
           entries: r.entries,
           rejoins: [],
           scrapped: null,

@@ -20,11 +20,31 @@ export interface ScrapInfo {
   reason: string;
 }
 
+/** Why one player takes a penalty round. */
+export type PenaltyReason = 'wrongShow' | 'error';
+
+/**
+ * A round that nobody won: one player made a mistake, such as showing a hand that isn't valid, and
+ * takes `points` (the full count, up to the per-round cap) while everyone else scores 0. Players who
+ * dropped keep their drop points, so their entries still say so.
+ */
+export interface Penalty {
+  playerId: PlayerId;
+  points: number;
+  reason: PenaltyReason;
+}
+
 export interface Round {
   /** Strictly increasing within a game. Scrapped rounds keep their seq. */
   seq: number;
-  winnerId: PlayerId;
-  /** One entry for every active player except the winner, who scores 0. */
+  /** Who won. null in a penalty round, which has no winner. */
+  winnerId: PlayerId | null;
+  /** Set when one player takes a penalty and the others score 0. See `Penalty`. */
+  penalty?: Penalty | null;
+  /**
+   * One entry for every active player except the winner, who scores 0. In a penalty round: every
+   * active player except the one with the penalty, each either a drop or 0 points.
+   */
   entries: Record<PlayerId, RoundEntry>;
   /** Rejoins that happen after this round and before the next one. */
   rejoins?: Rejoin[];
@@ -62,6 +82,10 @@ export interface PlayerState {
   roundsPlayed: number;
   /** Drops and middle drops taken over the whole game. */
   dropsTaken: number;
+  /** Rounds won. A penalty round has no winner, so it adds nothing here. */
+  roundsWon: number;
+  /** Penalty rounds taken (a wrong show or another error). */
+  penalties: number;
   /** Set while the player is out. */
   eliminated: { afterSeq: number; total: number } | null;
 }
@@ -69,7 +93,10 @@ export interface PlayerState {
 export interface RoundRecord {
   seq: number;
   dealerId: PlayerId;
-  winnerId: PlayerId;
+  /** null in a penalty round. */
+  winnerId: PlayerId | null;
+  /** Who took the penalty and why, in a penalty round. */
+  penalty: Penalty | null;
   /** Penalty applied to each active player, including 0 for the winner. */
   points: Record<PlayerId, number>;
   entries: Record<PlayerId, RoundEntry>;

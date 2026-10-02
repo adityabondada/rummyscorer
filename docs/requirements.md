@@ -78,6 +78,9 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 - For everyone else, enter penalty points, or tap Drop or Middle drop to apply the configured points.
 - Each player shows drops remaining (e.g. "1 of 2 left"). At the limit, drop buttons are disabled and actual points must be entered.
 - Drop usage is stored per round, so edits and scraps recalculate it correctly.
+- **Quick entry:** the points boxes open the number keypad, picking the winner puts the cursor in the first box that needs points, and Next or Enter moves along the boxes and then to Save (nothing is saved until Save is pressed). Each player also has one-tap Drop, Middle drop and Max (the game's max penalty, left out when there is no cap).
+- **Preview before saving:** under each player the form shows their new total as their points go in, marks anyone who would go out or finish close to the limit, and says when the round would end the game and who would win.
+- **Undo:** for a minute after a round is saved, an Undo bar takes it back in one tap with no reason to type. It is a scrap with an automatic reason, so it stays in the list struck through like any scrapped round, and it is only offered while that round is still the latest.
 
 **Penalty rounds**
 

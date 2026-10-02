@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { activeIds, type GameState, type PenaltyReason, type Round } from '@rummy/engine';
 import { describeError } from '../../lib/names';
 import {
@@ -8,6 +8,7 @@ import {
   emptyForm,
   formFromRound,
   PENALTY_REASONS,
+  previewRound,
   type FormEntry,
   type RoundForm,
   type RoundMode,
@@ -45,6 +46,10 @@ export function RoundEntry({
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // The points boxes by player and the Save button, so Next and Enter can move along them.
+  const boxes = useRef(new Map<string, HTMLInputElement>());
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const focusFirstBox = useRef(false);
 
   const players = activeIds(state);
   const nameOf = (id: string) => names[id] ?? '?';
@@ -71,12 +76,14 @@ export function RoundEntry({
       return { ...cur, drops };
     });
 
-  const chooseWinner = (id: string) =>
+  const chooseWinner = (id: string) => {
+    focusFirstBox.current = true;
     setForm((cur) => {
       const entries = { ...cur.entries };
       delete entries[id];
       return { ...cur, winnerId: id, entries };
     });
+  };
 
   const choosePenalty = (id: string) =>
     setForm((cur) => {
@@ -84,6 +91,34 @@ export function RoundEntry({
       delete drops[id];
       return { ...cur, penalty: { ...cur.penalty, playerId: id }, drops };
     });
+
+  // After picking a winner, start typing at the first player who still needs points.
+  useEffect(() => {
+    if (!focusFirstBox.current) return;
+    focusFirstBox.current = false;
+    for (const id of activeIds(state)) {
+      const box = boxes.current.get(id);
+      if (box && !box.disabled && box.value === '') {
+        box.focus();
+        return;
+      }
+    }
+  });
+
+  /** Moves to the next points box, or to Save after the last one. */
+  const moveOn = (from: string) => {
+    const ids = activeIds(state);
+    for (const id of ids.slice(ids.indexOf(from) + 1)) {
+      const box = boxes.current.get(id);
+      if (box && !box.disabled) {
+        box.focus();
+        return;
+      }
+    }
+    saveButton.current?.focus();
+  };
+
+  const preview = previewRound(state, form, seq);
 
   const submit = async () => {
     const built = buildRound(state, form, seq);
@@ -219,6 +254,24 @@ export function RoundEntry({
                       {id === state.dealerId && ' · deals'}
                       {id === state.firstPlayerId && ' · plays first'}
                     </span>
+                    {preview.totals[id] !== undefined && (
+                      <span
+                        data-testid={`after-${id}`}
+                        className={cx(
+                          'block text-xs font-medium',
+                          preview.out.includes(id)
+                            ? 'text-red-700'
+                            : preview.close.includes(id)
+                              ? 'text-amber-700'
+                              : 'text-slate-600',
+                        )}
+                      >
+                        {'→ '}
+                        {preview.totals[id]}
+                        {preview.out.includes(id) && ' · out'}
+                        {preview.close.includes(id) && ' · close to the limit'}
+                      </span>
+                    )}
                   </div>
                   {penaltyMode ? (
                     <Button
@@ -241,12 +294,23 @@ export function RoundEntry({
                   )}
                 </div>
                 {!special && (
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     {penaltyMode ? (
                       <span className="w-20 text-sm text-slate-600">{entry ? '' : '0 pts'}</span>
                     ) : (
                       <input
                         aria-label={`${nameOf(id)} points`}
+                        ref={(el) => {
+                          if (el) boxes.current.set(id, el);
+                          else boxes.current.delete(id);
+                        }}
+                        enterKeyHint="next"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            moveOn(id);
+                          }
+                        }}
                         inputMode="numeric"
                         className="w-20 rounded-lg border border-slate-300 px-2 py-1.5 disabled:bg-slate-100"
                         placeholder="Pts"
@@ -264,14 +328,43 @@ export function RoundEntry({
                     )}
                     {dropButton('drop', 'Drop')}
                     {dropButton('middleDrop', 'Middle')}
+                    {!penaltyMode && maxPenalty !== null && (
+                      <Button
+                        variant={
+                          entry?.kind === 'points' && entry.points === String(maxPenalty)
+                            ? 'primary'
+                            : 'secondary'
+                        }
+                        small
+                        aria-pressed={
+                          entry?.kind === 'points' && entry.points === String(maxPenalty)
+                        }
+                        onClick={() =>
+                          setEntry(
+                            id,
+                            entry?.kind === 'points' && entry.points === String(maxPenalty)
+                              ? undefined
+                              : { kind: 'points', points: String(maxPenalty) },
+                          )
+                        }
+                      >
+                        Max {maxPenalty}
+                      </Button>
+                    )}
                   </div>
                 )}
               </li>
             );
           })}
         </ul>
+        {preview.winners && (
+          <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This round ends the game. {preview.winners.map(nameOf).join(' and ')}{' '}
+            {preview.winners.length > 1 ? 'win' : 'wins'}.
+          </p>
+        )}
         <ErrorText>{error}</ErrorText>
-        <Button className="w-full" disabled={busy} onClick={() => void submit()}>
+        <Button ref={saveButton} className="w-full" disabled={busy} onClick={() => void submit()}>
           {submitLabel}
         </Button>
       </div>

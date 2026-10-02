@@ -1,3 +1,4 @@
+import { DANGER_AT } from './race';
 import {
   activeIds,
   applyRound,
@@ -154,3 +155,72 @@ export const PENALTY_REASONS: { value: PenaltyReason; label: string }[] = [
 
 export const reasonLabel = (reason: PenaltyReason): string =>
   PENALTY_REASONS.find((r) => r.value === reason)?.label ?? reason;
+
+/** What saving the round as filled in so far would do to each player. */
+export interface Preview {
+  /** The new total of each player whose points for this round are known so far. */
+  totals: Record<PlayerId, number>;
+  /** Players whose new total is past the limit. */
+  out: PlayerId[];
+  /** Players still in, but within sight of the limit. */
+  close: PlayerId[];
+  /** Who would win, if this round ends the game. null if it doesn't, or isn't complete yet. */
+  winners: PlayerId[] | null;
+}
+
+const wholeNumber = (text: string): number | null =>
+  /^\d+$/.test(text.trim()) ? Number(text) : null;
+
+/**
+ * Works out the new totals as the form is filled in, so a slip such as 80 for 8 shows before it is
+ * saved. A player appears once their points are known; the end-of-game note waits until the round
+ * is complete and the engine accepts it.
+ */
+export function previewRound(state: GameState, form: RoundForm, seq: number): Preview {
+  const { limit, dropPoints: drop, middleDropPoints: middle } = state.settings;
+  const added: Record<PlayerId, number> = {};
+  const dropValue = (kind: 'drop' | 'middleDrop') => (kind === 'drop' ? drop : middle);
+
+  if (form.mode === 'penalty') {
+    const { playerId, points } = form.penalty;
+    const penalty = wholeNumber(points);
+    if (playerId && penalty !== null) {
+      for (const id of activeIds(state)) {
+        if (id === playerId) added[id] = penalty;
+        else {
+          const dropped = form.drops[id];
+          added[id] = dropped ? dropValue(dropped.kind) : 0;
+        }
+      }
+    }
+  } else if (form.winnerId) {
+    for (const id of activeIds(state)) {
+      if (id === form.winnerId) {
+        added[id] = 0;
+        continue;
+      }
+      const entry = form.entries[id];
+      if (!entry) continue;
+      const n = entry.kind === 'points' ? wholeNumber(entry.points) : dropValue(entry.kind);
+      if (n !== null) added[id] = n;
+    }
+  }
+
+  const totals: Record<PlayerId, number> = {};
+  const out: PlayerId[] = [];
+  const close: PlayerId[] = [];
+  for (const [id, points] of Object.entries(added)) {
+    const total = state.players[id]!.total + points;
+    totals[id] = total;
+    if (total > limit) out.push(id);
+    else if (limit > 0 && (total / limit) * 100 >= DANGER_AT) close.push(id);
+  }
+
+  let winners: PlayerId[] | null = null;
+  const built = buildRound(state, form, seq);
+  if (built.ok) {
+    const next = applyRound(state, built.round);
+    if (next.status === 'finished') winners = next.winnerIds;
+  }
+  return { totals, out, close, winners };
+}

@@ -1,5 +1,5 @@
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { rejoinEligibility, type Round } from '@rummy/engine';
 import { gamePath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
@@ -33,6 +33,7 @@ import { ResultCard } from './game/ResultCard';
 import { RoundEntry } from './game/RoundEntry';
 import { RoundList } from './game/RoundList';
 import { ShareModal } from './game/ShareModal';
+import { UNDO_MS, UndoBar } from './game/UndoBar';
 import { ScoreBoard } from './game/ScoreBoard';
 import { useLeagueContext } from './LeagueLayout';
 
@@ -54,6 +55,14 @@ export function GameScreen() {
   const { game, rows, state } = live;
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [error, setError] = useState('');
+  // The round just saved, which can be undone in one tap for a minute.
+  const [undo, setUndo] = useState<{ seq: number; busy: boolean } | null>(null);
+  const undoSeq = undo?.seq;
+  useEffect(() => {
+    if (undoSeq === undefined) return;
+    const timer = setTimeout(() => setUndo(null), UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [undoSeq]);
 
   const uidNames = useMemo(
     () =>
@@ -118,7 +127,24 @@ export function GameScreen() {
     }
   };
 
-  const saveNew = (round: Round) => apply(planNewRound(game, rows, players, round, uid, now()));
+  const saveNew = async (round: Round) => {
+    const plan = planNewRound(game, rows, players, round, uid, now());
+    const problem = await apply(plan);
+    if (!problem && plan.ok && !Array.isArray(plan.value)) {
+      setUndo({ seq: plan.value.doc.seq, busy: false });
+    }
+    return problem;
+  };
+
+  const undoLast = async () => {
+    setError('');
+    setUndo((cur) => (cur ? { ...cur, busy: true } : cur));
+    const problem = await apply(
+      planScrapLatest(rows, 'Undone right after it was entered', uid, now()),
+    );
+    if (problem) setError(problem);
+    setUndo(null);
+  };
 
   const saveEdit = (row: RoundRow) => (round: Round) =>
     apply(planEditRound(game, rows, players, row, round, uid, now()));
@@ -156,6 +182,8 @@ export function GameScreen() {
   const finished = state?.status === 'finished';
   const splitFinished = finished && state?.outcome === 'split';
   const problem = live.problem ?? game.summaryError;
+  // Offered only while the round just saved is still the latest one, so nothing newer is undone.
+  const justSaved = undo && live_.at(-1)?.doc.seq === undo.seq ? undo : null;
 
   return (
     <Page
@@ -188,6 +216,15 @@ export function GameScreen() {
           <p className="text-sm text-red-800">{problem}</p>
           <p className="text-sm text-red-800">Scrap or roll back the latest rounds to fix it.</p>
         </Card>
+      )}
+
+      {justSaved && (
+        <UndoBar
+          round={justSaved.seq}
+          busy={justSaved.busy}
+          onUndo={() => void undoLast()}
+          onDismiss={() => setUndo(null)}
+        />
       )}
 
       {state && <ScoreBoard state={state} names={names} />}

@@ -15,6 +15,7 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 
 - Any signed-in user can create a league and becomes its admin.
 - A user can belong to several leagues and switch between them.
+- **Your leagues:** the home screen lists each league with how many players it has (people who can be picked for a game: not retired, and a guest merged into a member counted once), updating live.
 - **Joining:** the admin shares an invite link or short code. Opening it and signing in with Google adds the user as a member.
 - **Invite page:** opening an invite link shows which league it is for and how many people are in it (nothing more) before signing in, and says so plainly when the link is no longer valid. After signing in, the join page uses the name from the profile and only asks for one if there is none. If nobody is waiting to be claimed, the new member goes straight to the league.
 - **First game:** a league with no games points at the next step: Start your first game, or Add players when there are fewer than two.

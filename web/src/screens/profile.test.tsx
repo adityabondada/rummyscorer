@@ -20,7 +20,10 @@ vi.mock('../api', () => ({
   errorMessage: (e: unknown) =>
     e instanceof Error ? e.message : 'Something went wrong. Try again.',
 }));
-vi.mock('../hooks', () => ({ useMyLeagues: () => ({ loading: false, value: [] }) }));
+vi.mock('../hooks', () => ({
+  useMyLeagues: () => ({ loading: false, value: [] }),
+  usePlayerCounts: () => ({}),
+}));
 
 import { LeaguesScreen } from './LeaguesScreen';
 import { ProfileScreen } from './ProfileScreen';

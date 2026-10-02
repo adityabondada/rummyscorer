@@ -29,6 +29,7 @@ import type { GameState } from '@rummy/engine';
 import { EngineError } from '@rummy/engine';
 import { db } from './firebase';
 import { gameState, type PlayerMap, type RoundRow } from './lib/game';
+import { pickablePlayers } from './lib/names';
 import type { GameRow } from './lib/night';
 
 export interface Loaded<T> {
@@ -102,6 +103,43 @@ export function useMyLeagues(uid: string): Loaded<LeagueRow[]> {
         .sort((a, b) => a.doc.name.localeCompare(b.doc.name)),
     [],
   );
+}
+
+/**
+ * How many players each league has, live: the people who could be picked for a game (not retired,
+ * and guests merged into a member counted once). A league shows no number until it has loaded,
+ * or if it can't be read.
+ */
+export function usePlayerCounts(leagueIds: string[]): Record<string, number> {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const key = [...leagueIds].sort().join(',');
+
+  useEffect(() => {
+    const ids = key === '' ? [] : key.split(',');
+    // Forget leagues that are no longer in the list.
+    setCounts((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([id]) => ids.includes(id))),
+    );
+    const unsubscribe = ids.map((id) =>
+      onSnapshot(
+        collection(db, playersPath(id)),
+        (snap) => {
+          const players: PlayerMap = Object.fromEntries(
+            parseEach(
+              snap.docs.map((d) => ({ id: d.id, data: d.data() })),
+              parsePlayer,
+            ).map((r) => [r.id, r.data]),
+          );
+          setCounts((prev) => ({ ...prev, [id]: pickablePlayers(players).length }));
+        },
+        () =>
+          setCounts((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== id))),
+      ),
+    );
+    return () => unsubscribe.forEach((stop) => stop());
+  }, [key]);
+
+  return counts;
 }
 
 export function useLeague(leagueId: string | null): Loaded<LeagueDoc | null> {

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createLeague, errorMessage, joinLeague } from '../api';
 import { useUser } from '../auth';
-import { useMyLeagues } from '../hooks';
+import { useMyLeagues, usePlayerCounts } from '../hooks';
 import { InstallPrompt } from '../InstallPrompt';
 import { EmptyState } from '../suits';
 import { Button, Card, ErrorText, Field, Loading, Page } from '../ui';
@@ -10,6 +10,7 @@ import { Button, Card, ErrorText, Field, Loading, Page } from '../ui';
 export function LeaguesScreen() {
   const user = useUser();
   const leagues = useMyLeagues(user.uid);
+  const playerCounts = usePlayerCounts(leagues.value.map((l) => l.id));
   const navigate = useNavigate();
   // Set on the Profile screen.
   const yourName = user.displayName ?? '';
@@ -80,9 +81,11 @@ export function LeaguesScreen() {
                 className="block rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
               >
                 <span className="font-medium">{l.doc.name}</span>
-                <span className="ml-2 text-sm text-slate-500">
-                  {l.doc.memberUids.length} members
-                </span>
+                {playerCounts[l.id] !== undefined && (
+                  <span className="ml-2 text-sm text-slate-500">
+                    {playerCounts[l.id]} {playerCounts[l.id] === 1 ? 'player' : 'players'}
+                  </span>
+                )}
               </Link>
             </li>
           ))}

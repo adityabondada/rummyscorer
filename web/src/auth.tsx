@@ -8,7 +8,15 @@ import {
   updateProfile,
   type User,
 } from 'firebase/auth';
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useState,
+  type ReactNode,
+} from 'react';
 import { auth, useEmulators } from './firebase';
 
 interface AuthValue {
@@ -19,6 +27,8 @@ interface AuthValue {
   /** Local emulator only: signs in a made-up account so the app can be tried without Google. */
   signInAsTester: ((name: string) => Promise<void>) | null;
   signOut: () => Promise<void>;
+  /** Changes the name shown for you when you create or join a league. */
+  updateName: (name: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -42,6 +52,9 @@ async function testerSignIn(name: string): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Firebase changes the signed-in user in place when the profile is updated, so a counter tells
+  // the screens to read it again.
+  const [profileVersion, profileChanged] = useReducer((n: number) => n + 1, 0);
 
   useEffect(
     () =>
@@ -61,8 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signInAsTester: useEmulators ? testerSignIn : null,
       signOut: () => firebaseSignOut(auth),
+      updateName: async (name) => {
+        if (!auth.currentUser) throw new Error('You are signed out. Sign in again and retry.');
+        await updateProfile(auth.currentUser, { displayName: name.trim() });
+        profileChanged();
+      },
     }),
-    [user, loading],
+    [user, loading, profileVersion],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

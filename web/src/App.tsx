@@ -11,6 +11,7 @@ import { LeaguesScreen } from './screens/LeaguesScreen';
 import { MembersTab } from './screens/MembersTab';
 import { NewGameScreen } from './screens/NewGameScreen';
 import { PlayersTab } from './screens/PlayersTab';
+import { ProfileScreen } from './screens/ProfileScreen';
 import { StatsTab } from './screens/StatsTab';
 import { SignInScreen } from './screens/SignInScreen';
 import { Loading } from './ui';
@@ -24,6 +25,7 @@ function Routed() {
       <CardBackdrop />
       <Routes>
         <Route path="/" element={<LeaguesScreen />} />
+        <Route path="/profile" element={<ProfileScreen />} />
         <Route path="/join/:code" element={<JoinScreen />} />
         <Route path="/l/:leagueId" element={<LeagueLayout />}>
           <Route element={<LeagueTabs />}>

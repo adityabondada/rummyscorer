@@ -9,9 +9,15 @@ import { recomputeGame, splitChanged } from './recompute';
 
 initializeApp();
 
-// TODO(open-question): match this to the Firestore database location once it is known; Firestore
-// triggers should run in the same region as the database.
+// The Firestore database is in nam5 (US multi-region); us-central1 is inside it, and the Firestore
+// triggers deploy there.
 setGlobalOptions({ region: 'us-central1', maxInstances: 5 });
+
+// Callables must be reachable from a browser, so Google Cloud has to let anyone call them (this is
+// what lets the browser's CORS preflight through). Who may actually do anything is decided in the
+// code: every function starts by requiring a signed-in caller. Set explicitly, because the deploy
+// tool only makes a function public when it creates it or when this option is given.
+const callableOptions = { invoker: 'public' } as const;
 
 const db = () => getFirestore();
 
@@ -26,7 +32,7 @@ function tokenName(request: CallableRequest): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
-export const createLeagueFn = onCall((request) =>
+export const createLeagueFn = onCall(callableOptions, (request) =>
   createLeague(
     db(),
     callerUid(request),
@@ -38,7 +44,7 @@ export const createLeagueFn = onCall((request) =>
   ),
 );
 
-export const joinLeagueFn = onCall((request) =>
+export const joinLeagueFn = onCall(callableOptions, (request) =>
   joinLeague(
     db(),
     callerUid(request),
@@ -50,11 +56,11 @@ export const joinLeagueFn = onCall((request) =>
   ),
 );
 
-export const regenerateInviteFn = onCall((request) =>
+export const regenerateInviteFn = onCall(callableOptions, (request) =>
   regenerateInvite(db(), callerUid(request), { leagueId: request.data?.leagueId }, Date.now()),
 );
 
-export const removeMemberFn = onCall(async (request) => {
+export const removeMemberFn = onCall(callableOptions, async (request) => {
   await removeMember(
     db(),
     callerUid(request),
@@ -64,7 +70,7 @@ export const removeMemberFn = onCall(async (request) => {
   return { ok: true };
 });
 
-export const mergePlayersFn = onCall((request) =>
+export const mergePlayersFn = onCall(callableOptions, (request) =>
   mergePlayers(
     db(),
     callerUid(request),
@@ -77,7 +83,7 @@ export const mergePlayersFn = onCall((request) =>
   ),
 );
 
-export const unmergePlayersFn = onCall((request) =>
+export const unmergePlayersFn = onCall(callableOptions, (request) =>
   unmergePlayers(
     db(),
     callerUid(request),

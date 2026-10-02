@@ -24,6 +24,14 @@
       {
         "source": "/@(index.html|sw.js|registerSW.js|manifest.webmanifest)",
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/@(l|join)/**",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       }
     ]
   },

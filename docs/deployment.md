@@ -128,7 +128,9 @@ Settings → Branches → Add branch protection rule for `main`:
   `rummytracker-8eab5.firebaseapp.com` are there by default. **Preview links use a different address
   for every pull request, and this list has no wildcards, so Google sign-in does not work on previews.**
   They are for checking layout. To try sign-in on one, add its domain by hand.
-- **Firestore:** location `us-central`, which matches the functions region (`us-central1`).
+- **Firestore:** the `(default)` database exists in `nam5` (US multi-region), Standard edition. The
+  functions run in `us-central1`, which is inside it, and the Firestore triggers deploy there fine. A
+  database's location can never be changed.
 
 ## 5. Budget alert (safety net)
 
@@ -150,11 +152,35 @@ firebase deploy --project rummytracker-8eab5
 
 After that, merging to `main` deploys by itself.
 
+**This was done once by hand on 2 October 2026** (rules, indexes, functions and Hosting), so the live site
+is already up at <https://rummytracker-8eab5.web.app>. These are the things that went wrong, in case they
+come back:
+
+- **The database has to exist first.** Rules cannot be deployed to a project with no Firestore database.
+  Create it in the console (Build, Firestore Database) before the first deploy.
+- **"Cannot determine backend specification. Timeout after 10000."** The CLI loads the functions to find
+  them and gives up after 10 seconds, which a slow machine can exceed on the first run. Set
+  `FUNCTIONS_DISCOVERY_TIMEOUT=60` and retry.
+- **"We failed to modify the IAM policy for the project."** On a project's first 2nd-gen deploy the CLI
+  grants a few roles to Google's own service accounts, which only exist a minute or so after it enables
+  Eventarc and Pub/Sub. Retrying once fixed it. If it persists, the error prints the three `gcloud`
+  commands to run as an owner.
+- **`functions/package.json` must not list `@rummy/engine` or `@rummy/data`.** Google's build runs
+  `npm install` on that file alone, finds no such packages on npm, and fails. They are bundled into
+  `lib/index.js` already, and the bundler finds them through the workspace links.
+- **Callable functions are only made public when they are created.** An update never changes that, even
+  with `invoker: 'public'` in the code. If a callable returns a bare 403 (even to the browser's CORS
+  preflight), delete it with `firebase functions:delete <name> --region us-central1` and deploy again; the
+  new function is created public. A correct deploy answers an unsigned call with 401, not 403.
+- The first deploy also added a cleanup rule that deletes old function build images after a day, to keep
+  storage inside the free quota.
+
 ## What I could not check
 
 - Nothing here has been run against your project: no account, pool or workflow exists yet.
 - The workflows have been checked for syntax, but not run on GitHub.
 - The roles for the production account are untested (see above).
-- The service worker (offline and install support) is built and its manifest checks out, but I could not
-  confirm it activates in the browser I had. Check on the first preview or production deploy: in Chrome,
-  DevTools → Application → Service workers and Manifest.
+- A real sign-in on the live site. The page loads, the rules refuse anonymous reads and writes, and the
+  functions answer 401 to an unsigned call, but I did not sign in, because that would create data in your
+  project. The first sign-in, league creation and join through the live site are still to be tried by you.
+- Google sign-in from a preview link (see section 4: preview addresses are not authorised domains).

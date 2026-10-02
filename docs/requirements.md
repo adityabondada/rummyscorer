@@ -113,6 +113,12 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 - **Payments:** each transfer on a night can be marked paid (and undone) by any member. A mark belongs to that exact payment on that night, so if another game changes the amount, it shows as unpaid again. A night shows "All settled" once every payment is paid and no game that night is still being played.
 - **Deleting a game:** any member can delete a game, after a confirmation. Its rounds and results go with it, it stops counting in stats and in who owes whom, and the league log keeps a note of who deleted it and when.
 
+## Sharing and settling up
+
+- **Share scores:** a Share button on a game sends the scores to a chat: who won, the nets and who pays whom when it is over, or the standings so far while it is on. It opens the phone's share sheet where there is one, and copies the text otherwise. Each night on the Games tab has a Share button for the night's nets and payments.
+- **Live view link:** any member can switch on a link to a game. Anyone with it can watch the scoreboard and rounds update without signing in, and can't change anything. Turning it off, or deleting the game, stops the link working. The page checks for new rounds every few seconds while the game is on, much less often once it is over, and keeps the last scores on screen if the connection drops.
+- **Copy a payment:** each payment still to be made has a Copy button that copies just the amount, ready to paste into a payment app. It doesn't mark the payment as paid.
+
 ## Scrapping rounds
 
 Rounds can be scrapped only from the end of the game, like an undo stack.
@@ -176,6 +182,8 @@ How the numbers are worked out (all from cached game summaries, never from round
 - `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
 - `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
+- `shareGame` (callable): any member switches a game's read-only link on or off. The link is a random code stored in `shares/{code}` (readable by no client) and on the game as `shareCode`.
+- `gameView` (callable, needs no sign-in): the replayed state of a shared game, with the league's name and the players' names, for the page behind the link. It gives away no account ids, nothing about other games, and nothing about the league's other members.
 - `inviteInfo` (callable, needs no sign-in): the league name and member count for an invite code, so the invite page can say what it is for. It gives away nothing else.
 - `recomputeLeague` (callable): any member can ask for every finished game in the league to be recalculated, which fills in numbers added to summaries later (such as rounds won). It leaves games that are already right alone, so it is safe to repeat.
 - `deleteGame` (callable): any member can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
@@ -191,7 +199,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.
 
-**Firestore rules.** Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
+**Firestore rules.** Shared game links live in `shares/`, which no client can read or write; only the two share callables touch it. Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
 
 **Repo and CI (GitHub)**
 

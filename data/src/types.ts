@@ -75,6 +75,8 @@ export interface GameDoc {
   summary: GameSummaryDoc | null;
   /** Set by functions when the recorded rounds can't be replayed. */
   summaryError: string | null;
+  /** Set by functions while a read-only link for watching the game is switched on. */
+  shareCode?: string | null;
 }
 
 /** What a round looked like before an edit, scrap or restore. */
@@ -131,4 +133,15 @@ export interface LogEntryDoc {
   by: string;
   at: number;
   details: Record<string, string | number | boolean | null>;
+}
+
+/**
+ * What a share code points at. Only functions read and write these; the code is unguessable, and
+ * deleting the document turns the link off.
+ */
+export interface ShareDoc {
+  leagueId: string;
+  gameId: string;
+  createdBy: string;
+  createdAt: number;
 }

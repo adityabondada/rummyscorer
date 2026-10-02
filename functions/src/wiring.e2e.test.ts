@@ -56,6 +56,9 @@ interface CallBody {
     updated?: number;
     leagueName?: string;
     members?: number;
+    shareCode?: string | null;
+    names?: Record<string, string>;
+    state?: { status: string; players: Record<string, { total: number }> };
   };
   error?: { status?: string };
 }
@@ -329,6 +332,59 @@ describe('inviteInfoFn', () => {
 
   it('says not found for a code that is not real', async () => {
     const res = await call('inviteInfoFn', { code: 'NOSUCHCD' });
+    expect(res.body.error?.status).toBe('NOT_FOUND');
+  });
+});
+
+describe('shared game links', () => {
+  async function leagueWithGame() {
+    const created = await call(
+      'createLeagueFn',
+      { name: 'Table view', displayName: 'Admin' },
+      admin,
+    );
+    const { leagueId, inviteCode, playerId: a } = created.body.result;
+    const joined = await call('joinLeagueFn', { code: inviteCode, displayName: 'Ravi' }, ravi);
+    const b = joined.body.result.playerId;
+    const gameId = await addGame(db, leagueId, [a, b], { settings: smallSettings() });
+    await addRound(db, leagueId, gameId, { seq: 1, winnerId: a, entries: { [b]: pts(10) } });
+    return { leagueId, gameId, a, b };
+  }
+
+  it('refuses to switch a link on for someone who is not signed in or not in the league', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    const anon = await call('shareGameFn', { leagueId, gameId, enable: true });
+    expect(anon.body.error?.status).toBe('UNAUTHENTICATED');
+    const outsider = await signUp('outsider3@example.com', 'Outsider');
+    const res = await call('shareGameFn', { leagueId, gameId, enable: true }, outsider);
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+  });
+
+  it('lets a member make a link, and anyone with it see the game with nobody signed in', async () => {
+    const { leagueId, gameId, a, b } = await leagueWithGame();
+    const made = await call('shareGameFn', { leagueId, gameId, enable: true }, ravi);
+    expect(made.status).toBe(200);
+    const code = made.body.result.shareCode!;
+    expect(code).toMatch(/^[A-Za-z0-9_-]{22}$/);
+
+    const view = await call('gameViewFn', { code });
+    expect(view.status).toBe(200);
+    expect(view.body.result.leagueName).toBe('Table view');
+    expect(view.body.result.names).toEqual({ [a]: 'Admin', [b]: 'Ravi' });
+    expect(view.body.result.state?.players[b]?.total).toBe(10);
+  });
+
+  it('stops working once the link is switched off', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    const { shareCode } = (await call('shareGameFn', { leagueId, gameId, enable: true }, admin))
+      .body.result;
+    await call('shareGameFn', { leagueId, gameId, enable: false }, admin);
+    const res = await call('gameViewFn', { code: shareCode });
+    expect(res.body.error?.status).toBe('NOT_FOUND');
+  });
+
+  it('says not found for a code that was never made', async () => {
+    const res = await call('gameViewFn', { code: 'A'.repeat(22) });
     expect(res.body.error?.status).toBe('NOT_FOUND');
   });
 });

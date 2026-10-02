@@ -32,6 +32,7 @@ import { ConfirmModal, RejoinModal, ReasonModal, RollbackModal, SplitModal } fro
 import { ResultCard } from './game/ResultCard';
 import { RoundEntry } from './game/RoundEntry';
 import { RoundList } from './game/RoundList';
+import { ShareModal } from './game/ShareModal';
 import { ScoreBoard } from './game/ScoreBoard';
 import { useLeagueContext } from './LeagueLayout';
 
@@ -42,12 +43,13 @@ type Dialog =
   | { kind: 'rollback' }
   | { kind: 'rejoin'; playerId: string; entryScore: number }
   | { kind: 'split' }
-  | { kind: 'delete' };
+  | { kind: 'delete' }
+  | { kind: 'share' };
 
 export function GameScreen() {
   const { gameId = '' } = useParams();
   const navigate = useNavigate();
-  const { leagueId, uid, players, names } = useLeagueContext();
+  const { leagueId, league, uid, players, names } = useLeagueContext();
   const live = useLiveGame(leagueId, gameId, players);
   const { game, rows, state } = live;
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -166,6 +168,9 @@ export function GameScreen() {
           ) : (
             <Badge tone="amber">In progress</Badge>
           )}
+          <Button variant="secondary" small onClick={() => setDialog({ kind: 'share' })}>
+            Share
+          </Button>
           <Button
             variant="danger"
             small
@@ -363,6 +368,18 @@ export function GameScreen() {
               return errorMessage(e);
             }
           }}
+          onClose={close}
+        />
+      )}
+
+      {dialog?.kind === 'share' && state && (
+        <ShareModal
+          leagueId={leagueId}
+          gameId={gameId}
+          leagueName={league.name}
+          state={state}
+          names={names}
+          shareCode={game.shareCode}
           onClose={close}
         />
       )}

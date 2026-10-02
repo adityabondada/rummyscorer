@@ -9,6 +9,7 @@ import { InstallPrompt } from '../InstallPrompt';
 import { pickablePlayers } from '../lib/names';
 import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
+import { nightShareText, shareOrCopy } from '../lib/share';
 import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 import { SettlingUp } from './SettlingUp';
@@ -51,10 +52,12 @@ function GameLink({ game, names }: { game: GameRow; names: Record<string, string
 }
 
 export function GamesTab() {
-  const { leagueId, uid, players, names } = useLeagueContext();
+  const { leagueId, league, uid, players, names } = useLeagueContext();
   const games = useGames(leagueId);
   const settled = useSettled(leagueId);
   const [error, setError] = useState('');
+  // The night whose results were just copied or shared, to say so beside its button.
+  const [shared, setShared] = useState<{ day: string; note: string } | null>(null);
 
   const uidNames = useMemo(
     () =>
@@ -83,6 +86,25 @@ export function GamesTab() {
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not mark that as paid');
+    }
+  };
+
+  const shareNight = async (night: ReturnType<typeof nights>[number]) => {
+    setError('');
+    const text = nightShareText({
+      leagueName: league.name,
+      dayLabel: dayLabel(night.day),
+      finishedGames: night.games.length - night.inProgress,
+      inProgress: night.inProgress,
+      nets: night.nets,
+      transfers: night.transfers,
+      names,
+    });
+    const result = await shareOrCopy(`${league.name}, ${dayLabel(night.day)}`, text);
+    if (result === 'failed') setError("Couldn't share or copy. Try again.");
+    else if (result !== 'cancelled') {
+      setShared({ day: night.day, note: result === 'copied' ? 'Copied' : 'Shared' });
+      setTimeout(() => setShared((now) => (now?.day === night.day ? null : now)), 2500);
     }
   };
 
@@ -139,7 +161,26 @@ export function GamesTab() {
       ) : (
         nights(games.value).map((night) => (
           <Card key={night.day} className="space-y-3">
-            <h2 className="font-semibold">{dayLabel(night.day)}</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold">{dayLabel(night.day)}</h2>
+              {Object.keys(night.nets).length > 0 && (
+                <span className="flex items-center gap-2">
+                  {shared?.day === night.day && (
+                    <span role="status" className="text-xs text-emerald-700">
+                      {shared.note}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    small
+                    aria-label={`Share the results for ${dayLabel(night.day)}`}
+                    onClick={() => void shareNight(night)}
+                  >
+                    Share
+                  </Button>
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               {night.games.map((g) => (
                 <GameLink key={g.id} game={g} names={names} />

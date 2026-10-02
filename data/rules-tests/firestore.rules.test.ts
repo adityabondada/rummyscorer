@@ -248,6 +248,14 @@ describe('games', () => {
     await assertFails(updateDoc(ref('member'), { summaryError: 'boom' }));
   });
 
+  it('keeps the share link out of client hands, so only the function that checks membership makes one', async () => {
+    await assertFails(updateDoc(ref('member'), { shareCode: 'AAAAAAAAAAAAAAAAAAAAAA' }));
+    await assertFails(updateDoc(ref('admin'), { shareCode: null }));
+    await assertFails(
+      setDoc(ref('member', 'with-link'), { ...newGame, shareCode: 'AAAAAAAAAAAAAAAAAAAAAA' }),
+    );
+  });
+
   it('cannot be deleted', async () => {
     await assertFails(deleteDoc(ref('member')));
   });
@@ -512,6 +520,27 @@ describe('log', () => {
       }),
     );
     await assertFails(deleteDoc(doc(as('admin'), `leagues/${L}/log/e1`)));
+  });
+});
+
+describe('shared game links', () => {
+  const code = 'AAAAAAAAAAAAAAAAAAAAAA';
+  const target = { leagueId: L, gameId: G, createdBy: 'member', createdAt: 1 };
+
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `shares/${code}`), target);
+    });
+  });
+
+  it('cannot be read, listed or written by anyone from a browser, signed in or not', async () => {
+    for (const db of [as('member'), as('admin'), as('outsider'), anon()]) {
+      await assertFails(getDoc(doc(db, `shares/${code}`)));
+      await assertFails(getDocs(collection(db, 'shares')));
+      await assertFails(setDoc(doc(db, 'shares/BBBBBBBBBBBBBBBBBBBBBB'), target));
+      await assertFails(updateDoc(doc(db, `shares/${code}`), { gameId: 'other' }));
+      await assertFails(deleteDoc(doc(db, `shares/${code}`)));
+    }
   });
 });
 

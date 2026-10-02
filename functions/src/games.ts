@@ -2,6 +2,7 @@ import { gamePath, logPath, roundsPath } from '@rummy/data';
 import type { Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { logEntry, readLeague, requireMember, stringArg } from './access';
+import { removeShare } from './share';
 
 /**
  * Deletes a game and all of its rounds. Any member can do it. Stats and the night summary are built
@@ -28,6 +29,9 @@ export async function deleteGame(
 
   const data = game.data() ?? {};
   const rounds = (await db.collection(roundsPath(leagueId, gameId)).count().get()).data().count;
+
+  // A shared link for the game goes with it, so it can't point at nothing.
+  await removeShare(db, data);
 
   // Removes the rounds first and then the game itself.
   await db.recursiveDelete(gameRef);

@@ -13,11 +13,15 @@ import { PlayersTab } from './screens/PlayersTab';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { StatsTab } from './screens/StatsTab';
 import { SignInScreen } from './screens/SignInScreen';
+import { ViewScreen } from './screens/ViewScreen';
 import { Loading } from './ui';
 
 function Routed() {
   const { user, loading } = useAuth();
   const invite = useMatch('/join/:code')?.params.code;
+  // A shared game link is for anyone, so it never waits on, or asks for, a sign-in.
+  const view = useMatch('/view/:code')?.params.code;
+  if (view) return <ViewScreen code={view} />;
   if (loading) return <Loading />;
   // Someone arriving from an invite link sees which league it is for before they sign in. The
   // address stays the same, so after signing in they land on the join page.

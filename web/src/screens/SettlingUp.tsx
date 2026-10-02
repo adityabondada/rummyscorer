@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { settledKey, type SettledDoc } from '@rummy/data';
 import type { Transfer } from '@rummy/engine';
+import { copyText } from '../lib/share';
 import { Badge, Button } from '../ui';
 
 interface Props {
@@ -28,11 +30,21 @@ export function SettlingUp({
   onMarkPaid,
   onUndo,
 }: Props) {
+  // Which amount was just copied, so its button can say so for a moment.
+  const [copied, setCopied] = useState<string | null>(null);
   if (transfers.length === 0) return null;
   const nameOf = (id: string) => names[id] ?? '?';
   const keyOf = (t: Transfer) => settledKey(day, t.from, t.to, t.amount);
   const paidCount = transfers.filter((t) => settled[keyOf(t)]).length;
   const allPaid = paidCount === transfers.length;
+
+  const copy = async (t: Transfer) => {
+    // Just the number, which is what a payment app wants.
+    if (!(await copyText(String(t.amount)))) return;
+    const key = keyOf(t);
+    setCopied(key);
+    setTimeout(() => setCopied((now) => (now === key ? null : now)), 2000);
+  };
 
   return (
     <div className="rounded-lg bg-slate-50 p-3">
@@ -64,9 +76,19 @@ export function SettlingUp({
                   </Button>
                 </span>
               ) : (
-                <Button variant="secondary" small onClick={() => onMarkPaid(t)}>
-                  Mark paid
-                </Button>
+                <span className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    small
+                    aria-label={`Copy ${t.amount} for ${nameOf(t.from)} paying ${nameOf(t.to)}`}
+                    onClick={() => void copy(t)}
+                  >
+                    {copied === key ? 'Copied' : 'Copy'}
+                  </Button>
+                  <Button variant="secondary" small onClick={() => onMarkPaid(t)}>
+                    Mark paid
+                  </Button>
+                </span>
               )}
             </li>
           );

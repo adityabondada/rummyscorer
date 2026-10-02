@@ -5,6 +5,7 @@ export const COLLECTIONS = {
   rounds: 'rounds',
   log: 'log',
   settled: 'settled',
+  shares: 'shares',
 } as const;
 
 export const leaguePath = (leagueId: string) => `${COLLECTIONS.leagues}/${leagueId}`;
@@ -23,3 +24,6 @@ export const settledPath = (leagueId: string) => `${leaguePath(leagueId)}/${COLL
 /** The id of the "paid" record for one payment on one night. Matches what the rules require. */
 export const settledKey = (day: string, from: string, to: string, amount: number) =>
   `${day}_${from}_${to}_${amount}`;
+
+/** A link for watching one game without signing in. The code in it is the document id. */
+export const sharePath = (code: string) => `${COLLECTIONS.shares}/${code}`;

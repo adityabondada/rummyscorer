@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { EngineError, replay } from '@rummy/engine';
+import { EngineError, replay, type GameState } from '@rummy/engine';
 import {
   DataError,
   gameInput,
@@ -25,6 +25,28 @@ interface Derived {
   status: 'inProgress' | 'finished';
   summary: GameSummaryDoc | null;
   summaryError: string | null;
+}
+
+/**
+ * Replays a game from its stored documents, with merged guests counted as the member they became.
+ * Throws EngineError or DataError when the rounds are not a legal game.
+ */
+export function replayStored(
+  rawGame: unknown,
+  roundDocs: unknown[],
+  playerDocs: [string, unknown][],
+): GameState {
+  const game = parseGame(rawGame);
+  const rounds: RoundDoc[] = roundDocs.map((d) => parseRound(d));
+  const players: Record<string, PlayerDoc> = {};
+  for (const [id, data] of playerDocs) {
+    try {
+      players[id] = parsePlayer(data);
+    } catch {
+      // A malformed player doc just isn't merged into anything.
+    }
+  }
+  return replay(gameInput(game, rounds), { resolveId: makeResolveId(players) });
 }
 
 const withoutTime = (s: GameSummaryDoc | null) => (s ? { ...s, computedAt: 0 } : null);
@@ -57,17 +79,11 @@ export async function recomputeGame(
     let derived: Derived;
     try {
       // The stored summary is ignored here so an old summary shape can't block a recompute.
-      const game = parseGame({ ...raw, summary: null, summaryError: null });
-      const rounds: RoundDoc[] = roundsSnap.docs.map((d) => parseRound(d.data()));
-      const players: Record<string, PlayerDoc> = {};
-      for (const d of playersSnap.docs) {
-        try {
-          players[d.id] = parsePlayer(d.data());
-        } catch {
-          // A malformed player doc just isn't merged into anything.
-        }
-      }
-      const state = replay(gameInput(game, rounds), { resolveId: makeResolveId(players) });
+      const state = replayStored(
+        { ...raw, summary: null, summaryError: null },
+        roundsSnap.docs.map((d) => d.data()),
+        playersSnap.docs.map((d) => [d.id, d.data()] as [string, unknown]),
+      );
       derived = {
         status: state.status,
         summary: summaryFromState(state, now),

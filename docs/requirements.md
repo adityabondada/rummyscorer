@@ -137,10 +137,11 @@ All-time by default, with a time filter on every view: this month, last 3 months
 
 **Cloud Functions**
 
-- `joinLeague` (callable): validates an invite code and adds the caller as a member.
-- `mergePlayers` / `unmergePlayers` (callable): set or clear `mergedInto` on the guest player in one write, after the same-game guard (blocked if both profiles played in the same game); log to league history; then recompute the summaries of the affected games. Rounds are never rewritten, so unmerge is a clean reversal.
+- `createLeague` (callable): creates the league with the caller as admin and only member, plus the caller's own player profile. Clients can't create leagues directly.
+- `joinLeague` (callable): validates an invite code and adds the caller as a member with a profile of their own (or brings back the one they had before being removed). Joining twice is harmless.
+- `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
-- `removeMember`, `regenerateInvite` (callable): admin-only actions.
+- `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
 
 Everything else (round entry, scrapping, live game view) runs client-side.
 
@@ -152,7 +153,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId, entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes. Written by functions only.
 
-**Firestore rules.** Only league members can read or write a league's data. Clients can create a league (as its only member and admin), add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
+**Firestore rules.** Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
 
 **Repo and CI (GitHub)**
 

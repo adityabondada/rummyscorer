@@ -9,12 +9,19 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "build": "tsc --noEmit false --outDir lib"
+    "test": "vitest run --exclude \"**/*.emulator.test.ts\" --exclude \"**/*.e2e.test.ts\" --passWithNoTests",
+    "test:e2e": "npm run build && firebase emulators:exec --only auth,firestore,functions --project demo-rummytracker \"vitest run --config vitest.e2e.config.ts\"",
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-rummytracker \"vitest run --config vitest.emulator.config.ts\"",
+    "build": "npm run typecheck && esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=lib/index.js --sourcemap --external:firebase-admin --external:firebase-functions"
   },
   "dependencies": {
-    "@rummy/engine": "*",
     "firebase-admin": "^13.0.0",
     "firebase-functions": "^6.0.0"
+  },
+  "devDependencies": {
+    "@rummy/data": "*",
+    "@rummy/engine": "*",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0"
   }
 }

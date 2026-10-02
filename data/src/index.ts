@@ -3,3 +3,4 @@ export * from './paths';
 export * from './parse';
 export * from './rounds';
 export * from './summary';
+export * from './resolve';

@@ -134,7 +134,7 @@ describe('leagues', () => {
     await assertFails(getDocs(collection(as('member'), 'leagues')));
   });
 
-  it('can be created by anyone signed in, who becomes the only member and admin', async () => {
+  it('cannot be created from the client: the createLeague function does that', async () => {
     const mine = {
       name: 'New',
       adminUid: 'u9',
@@ -142,23 +142,8 @@ describe('leagues', () => {
       memberUids: ['u9'],
       createdAt: 1,
     };
-    await assertSucceeds(setDoc(doc(as('u9'), 'leagues/new'), mine));
+    await assertFails(setDoc(doc(as('u9'), 'leagues/new'), mine));
     await assertFails(setDoc(doc(anon(), 'leagues/new2'), mine));
-  });
-
-  it('cannot be created naming someone else as admin or adding other members', async () => {
-    const base = {
-      name: 'New',
-      adminUid: 'u9',
-      inviteCode: 'XYZ789',
-      memberUids: ['u9'],
-      createdAt: 1,
-    };
-    await assertFails(setDoc(doc(as('u9'), 'leagues/a'), { ...base, adminUid: 'u8' }));
-    await assertFails(setDoc(doc(as('u9'), 'leagues/b'), { ...base, memberUids: ['u9', 'u8'] }));
-    await assertFails(setDoc(doc(as('u9'), 'leagues/c'), { ...base, memberUids: ['u8'] }));
-    await assertFails(setDoc(doc(as('u9'), 'leagues/d'), { ...base, name: '' }));
-    await assertFails(setDoc(doc(as('u9'), 'leagues/e'), { ...base, extra: true }));
   });
 
   it('cannot be changed or deleted from the client, even by the admin', async () => {

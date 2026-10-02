@@ -228,8 +228,8 @@ describe('deployment guide', () => {
   });
 
   it('binds the production account to the production environment of this repository only', () => {
-    expect(docs).toContain('repo:adityabondada/rummytracker:environment:production');
-    expect(docs).toContain("assertion.repository=='adityabondada/rummytracker'");
+    expect(docs).toContain('repo:adityabondada/rummyscorer:environment:production');
+    expect(docs).toContain("assertion.repository=='adityabondada/rummyscorer'");
   });
 
   it('matches the project and region the app uses', () => {

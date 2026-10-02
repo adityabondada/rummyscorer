@@ -12,7 +12,7 @@ which the build agent is not allowed to do.
 Nothing is stored as a secret. GitHub proves who it is to Google Cloud with a short-lived token
 (Workload Identity Federation), so there are no keys to leak or rotate.
 
-Project: `rummytracker-8eab5` (number `678269735614`). Repository: `adityabondada/rummytracker`.
+Project: `rummytracker-8eab5` (number `678269735614`). Repository: `adityabondada/rummyscorer`.
 
 ## How access is split
 
@@ -79,19 +79,19 @@ gcloud iam workload-identity-pools providers create-oidc github-actions \
   --location=global --workload-identity-pool=github --display-name="GitHub Actions" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
-  --attribute-condition="assertion.repository=='adityabondada/rummytracker'"
+  --attribute-condition="assertion.repository=='adityabondada/rummyscorer'"
 
 POOL=projects/678269735614/locations/global/workloadIdentityPools/github
 
 # Previews: any workflow in the repository
 gcloud iam service-accounts add-iam-policy-binding $PREVIEW \
   --role=roles/iam.workloadIdentityUser \
-  --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/adityabondada/rummytracker"
+  --member="principalSet://iam.googleapis.com/$POOL/attribute.repository/adityabondada/rummyscorer"
 
 # Production: only a job running in the "production" environment
 gcloud iam service-accounts add-iam-policy-binding $DEPLOY \
   --role=roles/iam.workloadIdentityUser \
-  --member="principal://iam.googleapis.com/$POOL/subject/repo:adityabondada/rummytracker:environment:production"
+  --member="principal://iam.googleapis.com/$POOL/subject/repo:adityabondada/rummyscorer:environment:production"
 ```
 
 ## 2. GitHub: repository variables

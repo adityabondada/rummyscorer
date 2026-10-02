@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
+import { CardBackdrop } from './backdrop';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ClaimScreen } from './screens/ClaimScreen';
 import { GameScreen } from './screens/GameScreen';
@@ -19,22 +20,25 @@ function Routed() {
   if (loading) return <Loading />;
   if (!user) return <SignInScreen />;
   return (
-    <Routes>
-      <Route path="/" element={<LeaguesScreen />} />
-      <Route path="/join/:code" element={<JoinScreen />} />
-      <Route path="/l/:leagueId" element={<LeagueLayout />}>
-        <Route element={<LeagueTabs />}>
-          <Route index element={<GamesTab />} />
-          <Route path="stats" element={<StatsTab />} />
-          <Route path="players" element={<PlayersTab />} />
-          <Route path="members" element={<MembersTab />} />
+    <>
+      <CardBackdrop />
+      <Routes>
+        <Route path="/" element={<LeaguesScreen />} />
+        <Route path="/join/:code" element={<JoinScreen />} />
+        <Route path="/l/:leagueId" element={<LeagueLayout />}>
+          <Route element={<LeagueTabs />}>
+            <Route index element={<GamesTab />} />
+            <Route path="stats" element={<StatsTab />} />
+            <Route path="players" element={<PlayersTab />} />
+            <Route path="members" element={<MembersTab />} />
+          </Route>
+          <Route path="claim" element={<ClaimScreen />} />
+          <Route path="new-game" element={<NewGameScreen />} />
+          <Route path="g/:gameId" element={<GameScreen />} />
         </Route>
-        <Route path="claim" element={<ClaimScreen />} />
-        <Route path="new-game" element={<NewGameScreen />} />
-        <Route path="g/:gameId" element={<GameScreen />} />
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }
 

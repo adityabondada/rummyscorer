@@ -207,7 +207,7 @@ export function RejoinModal({
                 aria-pressed={seat === slot}
                 onClick={() => setSeat(slot)}
                 className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ring-1 ${
-                  seat === slot ? 'bg-emerald-50 ring-emerald-600' : 'ring-slate-200'
+                  seat === slot ? 'bg-slate-100 ring-slate-900' : 'ring-slate-200'
                 }`}
               >
                 {seat === slot ? (

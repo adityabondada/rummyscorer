@@ -27,7 +27,7 @@ export function FilterBar({
             className={cx(
               'rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition-colors',
               preset === p.id
-                ? 'bg-emerald-700 text-white ring-emerald-700'
+                ? 'bg-slate-900 text-white ring-slate-900'
                 : 'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50',
             )}
           >

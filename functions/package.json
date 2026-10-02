@@ -1,0 +1,20 @@
+{
+  "name": "@rummy/functions",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "build": "tsc --noEmit false --outDir lib"
+  },
+  "dependencies": {
+    "@rummy/engine": "*",
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0"
+  }
+}

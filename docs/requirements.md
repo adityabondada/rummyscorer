@@ -35,16 +35,16 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 
 Starting a game means picking players, setting the rules below, and ordering the table. All settings are per game and lock once the first round is entered.
 
-| Setting | Default | Notes |
-| --- | --- | --- |
-| Elimination limit | 201 | A player is out once their total goes past this |
-| Buy-in (bet) | $10 | Paid by every player; also the cost to rejoin |
-| Drop points | 20 | Penalty for dropping before playing |
-| Middle drop points | 40 | Penalty for dropping after playing |
-| Max drops per player | 2 | Drops and middle drops both count toward it |
-| Drops on rejoin | Carry over | Either carry over the drops left before elimination, or grant a set number (0 up to the max drops, e.g. 1) |
-| Max penalty per round | 80 | Full-count cap; round entry rejects higher values. Blank means no cap |
-| Rejoin cutoff | Off | Optional score; no rejoin once the highest active score passes it. Blank means rejoin is always allowed |
+| Setting               | Default    | Notes                                                                                                      |
+| --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
+| Elimination limit     | 201        | A player is out once their total goes past this                                                            |
+| Buy-in (bet)          | $10        | Paid by every player; also the cost to rejoin                                                              |
+| Drop points           | 20         | Penalty for dropping before playing                                                                        |
+| Middle drop points    | 40         | Penalty for dropping after playing                                                                         |
+| Max drops per player  | 2          | Drops and middle drops both count toward it                                                                |
+| Drops on rejoin       | Carry over | Either carry over the drops left before elimination, or grant a set number (0 up to the max drops, e.g. 1) |
+| Max penalty per round | 80         | Full-count cap; round entry rejects higher values. Blank means no cap                                      |
+| Rejoin cutoff         | Off        | Optional score; no rejoin once the highest active score passes it. Blank means rejoin is always allowed    |
 
 - The buy-in is the same for every player within a game.
 - The pot starts at buy-in × players and grows with each rejoin.

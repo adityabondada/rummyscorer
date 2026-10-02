@@ -130,26 +130,29 @@ All-time by default, with a time filter on every view: this month, last 3 months
 **Monorepo layout**
 
 - `engine/` — pure game logic shared by web and functions. Replays an ordered list of rounds plus game settings to derive totals, drops remaining, eliminations, rejoins, dealer, pot, winner and settlement. No Firebase imports. Fully unit-tested.
-- `web/` — the React app. Uses `engine` for live in-game state.
-- `functions/` — Cloud Functions. Uses the same `engine`.
+- `data/` — Firestore document types, path helpers, parsers for stored documents, round history helpers, and the game summary builder. Plain data only (timestamps are epoch milliseconds), so it works with both the web and admin SDKs. Also holds the rules tests.
+- `web/` — the React app. Uses `engine` for live in-game state and `data` for documents.
+- `functions/` — Cloud Functions. Uses the same `engine` and `data`.
 - `firestore.rules`, `firestore.indexes.json`, `firebase.json` at the root.
 
 **Cloud Functions**
 
 - `joinLeague` (callable): validates an invite code and adds the caller as a member.
 - `mergePlayers` / `unmergePlayers` (callable): set or clear `mergedInto` on the guest player in one write, after the same-game guard (blocked if both profiles played in the same game); log to league history; then recompute the summaries of the affected games. Rounds are never rewritten, so unmerge is a clean reversal.
-- `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the cached game summary. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops.
+- `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
 - `removeMember`, `regenerateInvite` (callable): admin-only actions.
 
 Everything else (round entry, scrapping, live game view) runs client-side.
 
 **Firestore data model**
 
-- `leagues/{leagueId}` — name, adminUid, inviteCode, memberUids.
-- `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable).
-- `leagues/{id}/games/{gameId}` — settings, seatOrder, status, createdBy, summary (winner(s), pot, per-player net, positions).
-- `leagues/{id}/games/{id}/rounds/{roundId}` — seq, dealerPlayerId, winnerPlayerId, entries (points or drop type per player), rejoins, scrapped {by, at, reason}, updatedBy, updatedAt, history.
-- `leagues/{id}/log/{entryId}` — merges, unmerges, member changes.
+- `leagues/{leagueId}` — name, adminUid, inviteCode, memberUids, createdAt.
+- `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
+- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
+- `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId, entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
+- `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes. Written by functions only.
+
+**Firestore rules.** Only league members can read or write a league's data. Clients can create a league (as its only member and admin), add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
 
 **Repo and CI (GitHub)**
 

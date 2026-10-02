@@ -6,6 +6,7 @@ Mobile-first web app for tracking weekend pool Rummy games in a friends' league.
 
 - TypeScript everywhere, npm workspaces monorepo.
 - `engine/` — pure game logic (no Firebase imports), Vitest tests.
+- `data/` — Firestore document types, parsers, round history helpers, summary builder, and rules tests (`npm run test:rules`).
 - `web/` — React + Vite + Tailwind, PWA, Recharts, Firebase JS SDK (modular).
 - `functions/` — Cloud Functions for Firebase (2nd gen, Node LTS), uses `engine`.
 - Firebase: Auth (Google), Firestore, Hosting, Functions. Project is on the Blaze plan; keep usage within no-cost quotas.

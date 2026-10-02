@@ -26,3 +26,24 @@ npm run build        # build web and functions
 ```
 
 Develop against the emulators only; never write to the production Firestore from a dev machine.
+
+### Trying the web app locally
+
+Run the emulators and the dev server in two terminals:
+
+```bash
+npm run build --workspace functions   # the emulator runs the built bundle
+firebase emulators:start --only auth,firestore,functions --project demo-rummytracker
+```
+
+```bash
+npm run dev                           # http://localhost:5173
+```
+
+With no API key configured, the app talks to the emulators. The sign-in page then also offers
+"Sign in as tester", so you can try the app as several made-up people without a Google account (sign out
+and back in as another name to be a second member). To use the real project instead, copy
+`web/.env.example` to `web/.env.local` and fill in the web app config from the Firebase console.
+
+Rebuild the functions bundle after changing `functions/`, `engine/` or `data/`; the emulator does not
+rebuild it for you.

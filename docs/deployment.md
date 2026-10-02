@@ -99,6 +99,9 @@ gcloud iam service-accounts add-iam-policy-binding $DEPLOY \
 Settings → Secrets and variables → Actions → **Variables** → New repository variable. None of these
 are secret.
 
+Until `WIF_PROVIDER` exists, the Hosting preview and the Deploy job are skipped rather than failed, so
+pull requests and merges to `main` stay green. They switch on by themselves once it is set.
+
 | Name                          | Value                                                                                          |
 | ----------------------------- | ---------------------------------------------------------------------------------------------- |
 | `WIF_PROVIDER`                | `projects/678269735614/locations/global/workloadIdentityPools/github/providers/github-actions` |

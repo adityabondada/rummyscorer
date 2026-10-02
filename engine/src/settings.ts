@@ -50,7 +50,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   dropPoints: 20,
   middleDropPoints: 40,
   maxDrops: 2,
-  dropsOnRejoin: { mode: 'carryOver' },
+  // A player who rejoins starts with no drops; the host can change this per game.
+  dropsOnRejoin: { mode: 'grant', count: 0 },
   maxRoundPenalty: 80,
   rejoinCutoff: null,
 };

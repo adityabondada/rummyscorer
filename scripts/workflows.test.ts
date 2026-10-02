@@ -138,6 +138,10 @@ describe('CI jobs', () => {
     );
   });
 
+  it('skips the preview, instead of failing, until the Google sign-in has been set up', () => {
+    expect(preview!.if).toContain("vars.WIF_PROVIDER != ''");
+  });
+
   it('previews as the account that can only manage previews, and never touches production', () => {
     const text = stepText(preview!);
     expect(text).toContain('WIF_PREVIEW_SERVICE_ACCOUNT');
@@ -169,6 +173,10 @@ describe('deploy jobs', () => {
     expect(check!.steps.map((s) => s.run ?? '')).toEqual(
       expect.arrayContaining(['npm run lint', 'npm run typecheck', 'npm test']),
     );
+  });
+
+  it('skips the deploy, instead of failing, until the Google sign-in has been set up', () => {
+    expect(job!.if).toContain("vars.WIF_PROVIDER != ''");
   });
 
   it('deploys as the production account, from the production environment only', () => {

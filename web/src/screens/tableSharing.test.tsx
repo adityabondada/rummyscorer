@@ -19,7 +19,13 @@ vi.mock('../hooks', () => ({
   useGames: () => games,
   useSettled: () => ({ loading: false, value: {} }),
 }));
-vi.mock('firebase/firestore', () => ({ deleteDoc: vi.fn(), doc: vi.fn(), setDoc: vi.fn() }));
+const batch = { set: vi.fn(), commit: vi.fn() };
+vi.mock('firebase/firestore', () => ({
+  deleteDoc: vi.fn(),
+  doc: (_db: unknown, path: string) => ({ path }),
+  setDoc: vi.fn(),
+  writeBatch: () => batch,
+}));
 vi.mock('../firebase', () => ({ db: {} }));
 
 import { GamesTab } from './GamesTab';
@@ -315,7 +321,7 @@ describe('the page behind a shared link', () => {
   });
 });
 
-describe('copying a payment amount', () => {
+describe('marking every payment as paid', () => {
   const transfers = [
     { from: 'b', to: 'a', amount: 20 },
     { from: 'c', to: 'a', amount: 10 },
@@ -328,41 +334,46 @@ describe('copying a payment amount', () => {
     uidNames: {},
     inProgress: 0,
     onMarkPaid: vi.fn(),
+    onMarkAllPaid: vi.fn(),
     onUndo: vi.fn(),
   };
 
-  it('has a Copy button on each payment still to make, copying just the number', async () => {
-    const user = makeUser();
-    render(<SettlingUp {...props} />);
-    await user.click(screen.getByRole('button', { name: 'Copy 20 for Bo paying Asha' }));
-    expect(clipboard.writeText).toHaveBeenCalledWith('20');
-    await user.click(screen.getByRole('button', { name: 'Copy 10 for Cy paying Asha' }));
-    expect(clipboard.writeText).toHaveBeenLastCalledWith('10');
+  beforeEach(() => {
+    props.onMarkPaid.mockReset();
+    props.onMarkAllPaid.mockReset();
   });
 
-  it('says Copied on that payment for a moment, then goes back to Copy', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const user = makeUser({ advanceTimers: vi.advanceTimersByTime });
+  it('has no Copy button on a payment: a payment is marked paid, nothing more', () => {
     render(<SettlingUp {...props} />);
-    const button = screen.getByRole('button', { name: 'Copy 20 for Bo paying Asha' });
-    await user.click(button);
-    expect(button).toHaveTextContent('Copied');
-    expect(screen.getByRole('button', { name: 'Copy 10 for Cy paying Asha' })).toHaveTextContent(
-      /^Copy$/,
+    expect(screen.queryByRole('button', { name: /Copy/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Mark paid' })).toHaveLength(2);
+  });
+
+  it('offers one button to mark them all, saying how many', async () => {
+    const user = makeUser();
+    render(<SettlingUp {...props} />);
+    await user.click(screen.getByRole('button', { name: 'Mark all paid (2)' }));
+    expect(props.onMarkAllPaid).toHaveBeenCalledTimes(1);
+    expect(props.onMarkAllPaid).toHaveBeenCalledWith(transfers);
+    expect(props.onMarkPaid).not.toHaveBeenCalled();
+  });
+
+  it('marks only the payments still to make when some are already paid', async () => {
+    const key = settledKey('2026-10-02', 'b', 'a', 20);
+    const three = [...transfers, { from: 'c', to: 'b', amount: 5 }];
+    const user = makeUser();
+    render(
+      <SettlingUp
+        {...props}
+        transfers={three}
+        settled={{ [key]: { day: '2026-10-02', from: 'b', to: 'a', amount: 20, by: 'u', at: 1 } }}
+      />,
     );
-    await act(() => vi.advanceTimersByTimeAsync(2100));
-    expect(button).toHaveTextContent(/^Copy$/);
+    await user.click(screen.getByRole('button', { name: 'Mark all paid (2)' }));
+    expect(props.onMarkAllPaid).toHaveBeenCalledWith([three[1], three[2]]);
   });
 
-  it('does not say Copied when the browser would not copy', async () => {
-    clipboard.writeText.mockRejectedValue(new Error('blocked'));
-    const user = makeUser();
-    render(<SettlingUp {...props} />);
-    await user.click(screen.getByRole('button', { name: 'Copy 20 for Bo paying Asha' }));
-    expect(screen.queryByText('Copied')).not.toBeInTheDocument();
-  });
-
-  it('is not offered for a payment already marked as paid, and Mark paid is still there', () => {
+  it('is left out when there is only one payment to make, as Mark paid already does it', () => {
     const key = settledKey('2026-10-02', 'b', 'a', 20);
     render(
       <SettlingUp
@@ -370,9 +381,23 @@ describe('copying a payment amount', () => {
         settled={{ [key]: { day: '2026-10-02', from: 'b', to: 'a', amount: 20, by: 'u', at: 1 } }}
       />,
     );
-    expect(screen.queryByRole('button', { name: 'Copy 20 for Bo paying Asha' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Copy 10 for Cy paying Asha' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mark all paid/ })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Mark paid' })).toHaveLength(1);
+  });
+
+  it('is left out once everything is settled, and when there is nothing to pay', () => {
+    const settled = Object.fromEntries(
+      transfers.map((t) => [
+        settledKey('2026-10-02', t.from, t.to, t.amount),
+        { day: '2026-10-02', ...t, by: 'u', at: 1 },
+      ]),
+    );
+    render(<SettlingUp {...props} settled={settled} />);
+    expect(screen.queryByRole('button', { name: /Mark all paid/ })).not.toBeInTheDocument();
+    expect(screen.getByText('All settled')).toBeInTheDocument();
+    cleanup();
+    render(<SettlingUp {...props} transfers={[]} />);
+    expect(screen.queryByRole('button', { name: /Mark all paid/ })).not.toBeInTheDocument();
   });
 });
 
@@ -505,5 +530,61 @@ describe('sharing a night s results', () => {
     const user = renderGames();
     await user.click(screen.getByRole('button', { name: /Share the results for/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't share or copy");
+  });
+});
+
+describe('marking a whole night paid from the Games tab', () => {
+  const finishedNight = {
+    id: 'g1',
+    doc: {
+      settings,
+      seatOrder: ['a', 'b', 'c'],
+      status: 'finished',
+      createdBy: 'u',
+      createdAt: new Date(2026, 9, 2, 20).getTime(),
+      split: null,
+      summaryError: null,
+      summary: {
+        outcome: 'outright',
+        winnerIds: ['a'],
+        pot: 30,
+        payouts: {},
+        rounds: 4,
+        computedAt: 1,
+        players: {
+          a: { net: 20, position: 1, roundsPlayed: 4, dropsTaken: 0, rejoins: 0, buyIns: 1 },
+          b: { net: -10, position: 2, roundsPlayed: 4, dropsTaken: 0, rejoins: 0, buyIns: 1 },
+          c: { net: -10, position: 2, roundsPlayed: 4, dropsTaken: 0, rejoins: 0, buyIns: 1 },
+        },
+      },
+    },
+  };
+
+  beforeEach(() => {
+    batch.set.mockReset();
+    batch.commit.mockReset().mockResolvedValue(undefined);
+    games = { loading: false, value: [finishedNight] };
+  });
+
+  it('writes a paid record for every payment in one batch, as the signed-in member', async () => {
+    const user = renderGames();
+    await user.click(screen.getByRole('button', { name: 'Mark all paid (2)' }));
+    expect(batch.set).toHaveBeenCalledTimes(2);
+    const written = batch.set.mock.calls.map(([ref, record]) => [ref.path, record]);
+    expect(written.map(([path]) => path).sort()).toEqual([
+      'leagues/L1/settled/2026-10-02_b_a_10',
+      'leagues/L1/settled/2026-10-02_c_a_10',
+    ]);
+    for (const [, record] of written) {
+      expect(record).toMatchObject({ day: '2026-10-02', amount: 10, by: 'u1', to: 'a' });
+    }
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('says why when the batch cannot be saved', async () => {
+    batch.commit.mockRejectedValue(new Error('Missing or insufficient permissions'));
+    const user = renderGames();
+    await user.click(screen.getByRole('button', { name: 'Mark all paid (2)' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Missing or insufficient');
   });
 });

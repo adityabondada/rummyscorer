@@ -24,7 +24,12 @@ vi.mock('../hooks', () => ({
   useGames: () => games,
   useSettled: () => ({ loading: false, value: {} }),
 }));
-vi.mock('firebase/firestore', () => ({ deleteDoc: vi.fn(), doc: vi.fn(), setDoc: vi.fn() }));
+vi.mock('firebase/firestore', () => ({
+  deleteDoc: vi.fn(),
+  doc: vi.fn(),
+  setDoc: vi.fn(),
+  writeBatch: vi.fn(),
+}));
 vi.mock('../firebase', () => ({ db: {} }));
 
 import { ClaimScreen } from './ClaimScreen';

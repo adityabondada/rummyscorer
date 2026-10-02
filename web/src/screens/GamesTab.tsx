@@ -1,4 +1,4 @@
-import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { settledKey, settledPath, type SettledDoc } from '@rummy/data';
@@ -108,6 +108,25 @@ export function GamesTab() {
     }
   };
 
+  /** Marks several payments paid in one write, so either all of them are or none are. */
+  const markAllPaid = async (day: string, ts: Transfer[]) => {
+    setError('');
+    const batch = writeBatch(db);
+    const at = Date.now();
+    for (const t of ts) {
+      const record: SettledDoc = { day, from: t.from, to: t.to, amount: t.amount, by: uid, at };
+      batch.set(
+        doc(db, `${settledPath(leagueId)}/${settledKey(day, t.from, t.to, t.amount)}`),
+        record,
+      );
+    }
+    try {
+      await batch.commit();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not mark those as paid');
+    }
+  };
+
   const undo = async (key: string) => {
     setError('');
     try {
@@ -194,6 +213,7 @@ export function GamesTab() {
               uidNames={uidNames}
               inProgress={night.inProgress}
               onMarkPaid={(t) => void markPaid(night.day, t)}
+              onMarkAllPaid={(ts) => void markAllPaid(night.day, ts)}
               onUndo={(key) => void undo(key)}
             />
             {Object.keys(night.nets).length > 0 && (

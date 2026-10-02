@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { settledKey, type SettledDoc } from '@rummy/data';
 import type { Transfer } from '@rummy/engine';
-import { copyText } from '../lib/share';
 import { Badge, Button } from '../ui';
 
 interface Props {
@@ -16,6 +14,8 @@ interface Props {
   /** Games still being played that night, which are not in these payments yet. */
   inProgress: number;
   onMarkPaid: (transfer: Transfer) => void;
+  /** Marks every payment in the list as paid in one go. */
+  onMarkAllPaid: (transfers: Transfer[]) => void;
   onUndo: (key: string) => void;
 }
 
@@ -28,23 +28,15 @@ export function SettlingUp({
   uidNames,
   inProgress,
   onMarkPaid,
+  onMarkAllPaid,
   onUndo,
 }: Props) {
-  // Which amount was just copied, so its button can say so for a moment.
-  const [copied, setCopied] = useState<string | null>(null);
   if (transfers.length === 0) return null;
   const nameOf = (id: string) => names[id] ?? '?';
   const keyOf = (t: Transfer) => settledKey(day, t.from, t.to, t.amount);
   const paidCount = transfers.filter((t) => settled[keyOf(t)]).length;
   const allPaid = paidCount === transfers.length;
-
-  const copy = async (t: Transfer) => {
-    // Just the number, which is what a payment app wants.
-    if (!(await copyText(String(t.amount)))) return;
-    const key = keyOf(t);
-    setCopied(key);
-    setTimeout(() => setCopied((now) => (now === key ? null : now)), 2000);
-  };
+  const unpaid = transfers.filter((t) => !settled[keyOf(t)]);
 
   return (
     <div className="rounded-lg bg-slate-50 p-3">
@@ -76,24 +68,24 @@ export function SettlingUp({
                   </Button>
                 </span>
               ) : (
-                <span className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    small
-                    aria-label={`Copy ${t.amount} for ${nameOf(t.from)} paying ${nameOf(t.to)}`}
-                    onClick={() => void copy(t)}
-                  >
-                    {copied === key ? 'Copied' : 'Copy'}
-                  </Button>
-                  <Button variant="secondary" small onClick={() => onMarkPaid(t)}>
-                    Mark paid
-                  </Button>
-                </span>
+                <Button variant="secondary" small onClick={() => onMarkPaid(t)}>
+                  Mark paid
+                </Button>
               )}
             </li>
           );
         })}
       </ul>
+      {unpaid.length > 1 && (
+        <Button
+          variant="secondary"
+          small
+          className="mt-2 w-full"
+          onClick={() => onMarkAllPaid(unpaid)}
+        >
+          Mark all paid ({unpaid.length})
+        </Button>
+      )}
       {inProgress > 0 && (
         <p className="mt-1 text-xs text-slate-500">
           Not counting {inProgress} game{inProgress > 1 ? 's' : ''} still in progress.

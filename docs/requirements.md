@@ -17,7 +17,7 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 - A user can belong to several leagues and switch between them.
 - **Joining:** the admin shares an invite link or short code. Opening it and signing in with Google adds the user as a member.
 - **Admin role is minimal:** regenerate the invite (invalidating old links) and remove members. Nothing else is admin-only.
-- **Members** can start games, log and edit rounds, scrap rounds, add guest players, and link or unlink guest profiles.
+- **Members** can start and delete games, log and edit rounds, scrap rounds, mark payments as paid, add guest players, and link or unlink guest profiles.
 - Firestore security rules ensure only league members can read or write that league's data.
 
 ## Players, guests and merging
@@ -35,28 +35,30 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 
 Starting a game means picking players, setting the rules below, and ordering the table. All settings are per game and lock once the first round is entered.
 
-| Setting               | Default    | Notes                                                                                                      |
-| --------------------- | ---------- | ---------------------------------------------------------------------------------------------------------- |
-| Elimination limit     | 201        | A player is out once their total goes past this                                                            |
-| Buy-in (bet)          | $10        | Paid by every player; also the cost to rejoin                                                              |
-| Drop points           | 20         | Penalty for dropping before playing                                                                        |
-| Middle drop points    | 40         | Penalty for dropping after playing                                                                         |
-| Max drops per player  | 2          | Drops and middle drops both count toward it                                                                |
-| Drops on rejoin       | Carry over | Either carry over the drops left before elimination, or grant a set number (0 up to the max drops, e.g. 1) |
-| Max penalty per round | 80         | Full-count cap; round entry rejects higher values. Blank means no cap                                      |
-| Rejoin cutoff         | Off        | Optional score; no rejoin once the highest active score passes it. Blank means rejoin is always allowed    |
+| Setting               | Default | Notes                                                                                                       |
+| --------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| Elimination limit     | 201     | A player is out once their total goes past this                                                             |
+| Buy-in (bet)          | $10     | Paid by every player; also the cost to rejoin                                                               |
+| Drop points           | 20      | Penalty for dropping before playing                                                                         |
+| Middle drop points    | 40      | Penalty for dropping after playing                                                                          |
+| Max drops per player  | 2       | Drops and middle drops both count toward it                                                                 |
+| Drops on rejoin       | Grant 0 | Either grant a set number of drops (0 up to the max drops), or carry over the drops left before elimination |
+| Max penalty per round | 80      | Full-count cap; round entry rejects higher values. Blank means no cap                                       |
+| Rejoin cutoff         | Off     | Optional score; no rejoin once the highest active score passes it. Blank means rejoin is always allowed     |
 
 - The buy-in is the same for every player within a game.
+- On the new game screen, who is playing and the order they sit in are one section: players are tapped in, reordered with arrows, or removed, with Select all as a shortcut. The elimination limit and buy-in are always visible; the other rules sit under "More rules", which shows a one-line summary of them while closed.
 - The pot starts at buy-in × players and grows with each rejoin.
 
 ## Seating order and dealer rotation
 
-1. Each player draws a card. The order is set either by entering each player's card and letting the app sort, or by dragging players into order.
-2. Ties are settled by a redraw; the app asks only the tied players for a new card.
-3. The lowest card is the round 1 dealer. Seat order is the lowest card, then everyone else from highest card down, so the highest card gets the first card dealt.
-4. The dealer moves to the next seat each round.
+1. Each player draws a card at the table. In the app, members put the players in the order the cards are dealt, highest card first, using the up and down arrows. The app does not take card values or run redraws.
+2. The player at the bottom of the list, with the lowest card, is the round 1 dealer. The player at the top gets the first card dealt.
+3. The dealer moves to the next seat each round, so after the bottom player the deal passes to the top of the list and down.
 
-Example: draws of 3, K, 9 and 6 give the order 3 → K → 9 → 6 → back to 3.
+Example: draws of K, 9, 6 and 3 are listed K, 9, 6, 3. The player with the 3 deals round 1, the player with the K gets the first card, and the next round is dealt by the player with the K.
+
+The game stores its seat order starting at the dealer (here 3, K, 9, 6), which is the same circle as the list. The engine still has a helper that turns card draws, including redraws for ties, into a seat order, but the app does not use it.
 
 - Eliminated players are skipped as dealer.
 - A rejoining player is placed in the order manually at the time of rejoin.
@@ -93,6 +95,8 @@ Example: draws of 3, K, 9 and 6 give the order 3 → K → 9 → 6 → back to 3
 - A split counts as a shared win, shown separately from outright wins.
 - **Settlement:** each player's net for the game is pot share won minus buy-ins paid (including rejoins).
 - A night summary shows who owes whom, simplified to the fewest transfers.
+- **Payments:** each transfer on a night can be marked paid (and undone) by any member. A mark belongs to that exact payment on that night, so if another game changes the amount, it shows as unpaid again. A night shows "All settled" once every payment is paid and no game that night is still being played.
+- **Deleting a game:** any member can delete a game, after a confirmation. Its rounds and results go with it, it stops counting in stats and in who owes whom, and the league log keeps a note of who deleted it and when.
 
 ## Scrapping rounds
 
@@ -130,6 +134,7 @@ How the numbers are worked out (all from cached game summaries, never from round
 - **Conflicts:** last write wins. Each round shows who last edited it and when.
 - **Edit history:** every change to a round keeps its prior values.
 - **Mobile-first**, installable as a PWA; works on desktop too.
+- **Look and feel:** light theme. The four card suits are the recurring motif: a fan of aces on the sign-in screen, a suit on each league tab, a spinner where the suits light up in turn while loading, and a row of suits on empty screens. On the live game screen each player is a score bar racing toward the limit: green early, amber from 60% of the limit, red from 85%, pulsing from 90%, and greyed out with a short shake when they go out. All motion is short and switches off for people whose device asks to reduce motion. There are no photos or uploaded images, and player avatars were considered and left out for now.
 - **Efficient reads:** stats come from cached game summaries, not rereading every round.
 
 ## Technical design
@@ -151,6 +156,7 @@ How the numbers are worked out (all from cached game summaries, never from round
 - `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
 - `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
+- `deleteGame` (callable): any member can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
 
 Everything else (round entry, scrapping, live game view) runs client-side.
 
@@ -160,7 +166,8 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
 - `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId, entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
-- `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes. Written by functions only.
+- `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
+- `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.
 
 **Firestore rules.** Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
 

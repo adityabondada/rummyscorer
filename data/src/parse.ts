@@ -8,6 +8,7 @@ import type {
   RoundDoc,
   RoundHistoryEntry,
   RoundSnapshot,
+  SettledDoc,
 } from './types';
 
 /** Thrown when stored data doesn't have the shape the app expects. */
@@ -59,6 +60,18 @@ export function parseLeague(data: unknown): LeagueDoc {
     inviteCode: str(d.inviteCode, 'inviteCode'),
     memberUids: strings(d.memberUids, 'memberUids'),
     createdAt: num(d.createdAt, 'createdAt'),
+  };
+}
+
+export function parseSettled(data: unknown): SettledDoc {
+  const d = obj(data, 'settled');
+  return {
+    day: str(d.day, 'day'),
+    from: str(d.from, 'from'),
+    to: str(d.to, 'to'),
+    amount: num(d.amount, 'amount'),
+    by: str(d.by, 'by'),
+    at: num(d.at, 'at'),
   };
 }
 

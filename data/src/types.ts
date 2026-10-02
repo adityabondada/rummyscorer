@@ -93,11 +93,32 @@ export interface RoundDoc extends RoundSnapshot {
 }
 
 export type LogType =
-  'memberJoined' | 'memberRemoved' | 'inviteRegenerated' | 'playerMerged' | 'playerUnmerged';
+  | 'memberJoined'
+  | 'memberRemoved'
+  | 'inviteRegenerated'
+  | 'playerMerged'
+  | 'playerUnmerged'
+  | 'gameDeleted';
+
+/**
+ * A payment someone marked as paid. The document id is built from the night and the exact amount
+ * (see `settledKey`), so if a later game changes what is owed, the old mark no longer matches and
+ * the payment shows as unpaid again.
+ */
+export interface SettledDoc {
+  /** The night, as a local date "YYYY-MM-DD". */
+  day: string;
+  from: string;
+  to: string;
+  amount: number;
+  /** Who marked it paid. */
+  by: string;
+  at: number;
+}
 
 export interface LogEntryDoc {
   type: LogType;
   by: string;
   at: number;
-  details: Record<string, string | number | null>;
+  details: Record<string, string | number | boolean | null>;
 }

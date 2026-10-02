@@ -1,8 +1,15 @@
+import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useGames } from '../hooks';
+import { settledKey, settledPath, type SettledDoc } from '@rummy/data';
+import type { Transfer } from '@rummy/engine';
+import { db } from '../firebase';
+import { useGames, useSettled } from '../hooks';
+import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
-import { Badge, Button, Card, Loading, money } from '../ui';
+import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
+import { SettlingUp } from './SettlingUp';
 
 const dayLabel = (day: string) =>
   new Date(`${day}T12:00:00`).toLocaleDateString(undefined, {
@@ -42,8 +49,49 @@ function GameLink({ game, names }: { game: GameRow; names: Record<string, string
 }
 
 export function GamesTab() {
-  const { leagueId, names } = useLeagueContext();
+  const { leagueId, uid, players, names } = useLeagueContext();
   const games = useGames(leagueId);
+  const settled = useSettled(leagueId);
+  const [error, setError] = useState('');
+
+  const uidNames = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(players)
+          .filter((p) => p.linkedUid)
+          .map((p) => [p.linkedUid!, p.name]),
+      ),
+    [players],
+  );
+
+  const markPaid = async (day: string, t: Transfer) => {
+    setError('');
+    const record: SettledDoc = {
+      day,
+      from: t.from,
+      to: t.to,
+      amount: t.amount,
+      by: uid,
+      at: Date.now(),
+    };
+    try {
+      await setDoc(
+        doc(db, `${settledPath(leagueId)}/${settledKey(day, t.from, t.to, t.amount)}`),
+        record,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not mark that as paid');
+    }
+  };
+
+  const undo = async (key: string) => {
+    setError('');
+    try {
+      await deleteDoc(doc(db, `${settledPath(leagueId)}/${key}`));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not undo that');
+    }
+  };
 
   return (
     <>
@@ -51,14 +99,12 @@ export function GamesTab() {
         <Button className="w-full">New game</Button>
       </Link>
 
+      <ErrorText>{error}</ErrorText>
+
       {games.loading ? (
         <Loading />
       ) : games.value.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            No games yet. Add your players, then start the first one.
-          </p>
-        </Card>
+        <EmptyState title="Deal the first game">Add your players, then start a game.</EmptyState>
       ) : (
         nights(games.value).map((night) => (
           <Card key={night.day} className="space-y-3">
@@ -68,25 +114,16 @@ export function GamesTab() {
                 <GameLink key={g.id} game={g} names={names} />
               ))}
             </div>
-            {night.transfers.length > 0 && (
-              <div className="rounded-lg bg-slate-50 p-3">
-                <h3 className="mb-1 text-sm font-semibold">Settling up</h3>
-                <ul className="space-y-0.5 text-sm">
-                  {night.transfers.map((t) => (
-                    <li key={`${t.from}-${t.to}`}>
-                      <strong>{names[t.from] ?? '?'}</strong> pays{' '}
-                      <strong>{names[t.to] ?? '?'}</strong> ${t.amount}
-                    </li>
-                  ))}
-                </ul>
-                {night.inProgress > 0 && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    Not counting {night.inProgress} game{night.inProgress > 1 ? 's' : ''} still in
-                    progress.
-                  </p>
-                )}
-              </div>
-            )}
+            <SettlingUp
+              day={night.day}
+              transfers={night.transfers}
+              names={names}
+              settled={settled.value}
+              uidNames={uidNames}
+              inProgress={night.inProgress}
+              onMarkPaid={(t) => void markPaid(night.day, t)}
+              onUndo={(key) => void undo(key)}
+            />
             {Object.keys(night.nets).length > 0 && (
               <ul className="flex flex-wrap gap-2 text-sm">
                 {Object.entries(night.nets)

@@ -199,7 +199,7 @@ export function TrendChart({ title, description, metric, points, series }: Props
       </div>
 
       <details className="text-sm">
-        <summary className="cursor-pointer text-emerald-800">Show as a table</summary>
+        <summary className="cursor-pointer text-slate-800">Show as a table</summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-left">
             <caption className="sr-only">{title}</caption>

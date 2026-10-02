@@ -54,5 +54,17 @@ npm run seed:demo
 
 It only talks to the emulators and cannot touch the real project.
 
+### Installing as an app
+
+The production build is a PWA: it can be added to a phone's home screen and opens without the browser
+bar. It is switched off in dev. The icons are drawn by `web/scripts/make-icons.mjs`; run
+`npm run icons --workspace web` after changing the design.
+
+### Deploying
+
+Pull requests get checks and a Hosting preview, and merging to `main` deploys. The one-time setup (service
+accounts, GitHub variables, branch protection, the first deploy) is in
+[docs/deployment.md](docs/deployment.md).
+
 Rebuild the functions bundle after changing `functions/`, `engine/` or `data/`; the emulator does not
 rebuild it for you.

@@ -28,8 +28,13 @@ describe('rejoin', () => {
     expect(game(withRejoin()).pot).toBe(40);
   });
 
-  it('carries over the drops left before elimination by default', () => {
-    expect(game(withRejoin()).players.C).toMatchObject({ dropsLeft: 1, dropsUsed: 1 });
+  it('gives a rejoining player no drops by default', () => {
+    expect(game(withRejoin()).players.C).toMatchObject({ dropsLeft: 0, dropsUsed: 2 });
+  });
+
+  it('can carry over the drops left before elimination instead', () => {
+    const s = game(withRejoin(), { dropsOnRejoin: { mode: 'carryOver' } });
+    expect(s.players.C).toMatchObject({ dropsLeft: 1, dropsUsed: 1 });
   });
 
   it('can grant a set number of drops instead', () => {

@@ -34,8 +34,8 @@ export const unmergePlayers = callable<
   { gamesUpdated: number }
 >('unmergePlayersFn');
 
-/** The message from a failed callable, without the "functions/..." prefix some SDKs add. */
-export function errorMessage(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/^functions\/[a-z-]+:?\s*/i, '') || 'Something went wrong';
-}
+export const deleteGame = callable<{ leagueId: string; gameId: string }, { ok: true }>(
+  'deleteGameFn',
+);
+
+export { errorMessage } from './lib/errors';

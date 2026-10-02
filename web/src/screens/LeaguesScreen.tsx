@@ -1,16 +1,17 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createLeague, errorMessage, joinLeague } from '../api';
-import { useAuth, useUser } from '../auth';
+import { useUser } from '../auth';
 import { useMyLeagues } from '../hooks';
+import { EmptyState } from '../suits';
 import { Button, Card, ErrorText, Field, Loading, Page } from '../ui';
 
 export function LeaguesScreen() {
   const user = useUser();
-  const { signOut } = useAuth();
   const leagues = useMyLeagues(user.uid);
   const navigate = useNavigate();
-  const [yourName, setYourName] = useState(user.displayName ?? '');
+  // Set on the Profile screen.
+  const yourName = user.displayName ?? '';
   const [leagueName, setLeagueName] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -48,19 +49,25 @@ export function LeaguesScreen() {
     <Page
       title="Your leagues"
       actions={
-        <Button variant="ghost" small onClick={() => void signOut()}>
-          Sign out
-        </Button>
+        <Link
+          to="/profile"
+          aria-label="Profile"
+          title="Profile"
+          className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+            <circle cx="12" cy="8" r="4.2" />
+            <path d="M3.5 21c0-4.6 3.8-7.5 8.5-7.5s8.5 2.9 8.5 7.5z" />
+          </svg>
+        </Link>
       }
     >
       {leagues.loading ? (
         <Loading />
       ) : leagues.value.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            You're not in a league yet. Start one, or join with an invite code.
-          </p>
-        </Card>
+        <EmptyState title="Start your first league">
+          Create a league for your group, or join one with an invite code.
+        </EmptyState>
       ) : (
         <ul className="space-y-2">
           {leagues.value.map((l) => (
@@ -79,15 +86,15 @@ export function LeaguesScreen() {
         </ul>
       )}
 
-      <Card className="space-y-3">
-        <h2 className="font-semibold">Your name</h2>
-        <Field
-          label="Shown to your league"
-          value={yourName}
-          onChange={(e) => setYourName(e.target.value)}
-          maxLength={40}
-        />
-      </Card>
+      {!yourName.trim() && (
+        <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Add your name in your{' '}
+          <Link to="/profile" className="font-medium underline">
+            profile
+          </Link>{' '}
+          before you create or join a league.
+        </p>
+      )}
 
       <form onSubmit={create}>
         <Card className="space-y-3">

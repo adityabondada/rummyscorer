@@ -9,6 +9,7 @@ rules_version = '2';
 //   players:  linkedUid, mergedInto (mergePlayers, unmergePlayers, joinLeague)
 //   games:    status, summary, summaryError (onRoundWrite)
 //   log:      all writes
+//   games:    deletion (deleteGame), since a game's rounds go with it
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -126,6 +127,31 @@ service cloud.firestore {
 
           allow delete: if false;
         }
+      }
+
+      // A payment marked as paid. Its id is the night plus who pays whom and how much, so a mark can
+      // only ever mean exactly that payment, and one payment can't be marked twice. Anyone in the
+      // league can mark a payment paid or undo it.
+      match /settled/{settledId} {
+        allow read: if isMember(leagueId);
+
+        allow create: if isMember(leagueId)
+          && request.resource.data.keys().hasOnly(['day', 'from', 'to', 'amount', 'by', 'at'])
+          && request.resource.data.keys().hasAll(['day', 'from', 'to', 'amount', 'by', 'at'])
+          && request.resource.data.day is string
+          && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.from is string
+          && request.resource.data.to is string
+          && request.resource.data.from != request.resource.data.to
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.at is number
+          && settledId == request.resource.data.day + '_' + request.resource.data.from + '_'
+               + request.resource.data.to + '_' + string(request.resource.data.amount);
+
+        allow update: if false;
+        allow delete: if isMember(leagueId);
       }
 
       match /log/{entryId} {

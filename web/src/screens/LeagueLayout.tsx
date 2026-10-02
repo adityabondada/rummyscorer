@@ -4,6 +4,7 @@ import { useUser } from '../auth';
 import { useLeague, usePlayers } from '../hooks';
 import type { PlayerMap } from '../lib/game';
 import { playerNames } from '../lib/names';
+import { Suit } from '../suits';
 import { Loading, Page, cx } from '../ui';
 
 export interface LeagueContext {
@@ -21,10 +22,10 @@ export interface LeagueContext {
 export const useLeagueContext = () => useOutletContext<LeagueContext>();
 
 const tabs = [
-  { to: '', label: 'Games', end: true },
-  { to: 'stats', label: 'Stats', end: false },
-  { to: 'players', label: 'Players', end: false },
-  { to: 'members', label: 'Members', end: false },
+  { to: '', label: 'Games', end: true, suit: 'spade' as const },
+  { to: 'stats', label: 'Stats', end: false, suit: 'diamond' as const },
+  { to: 'players', label: 'Players', end: false, suit: 'club' as const },
+  { to: 'members', label: 'Members', end: false, suit: 'heart' as const },
 ];
 
 export function LeagueLayout() {
@@ -77,7 +78,10 @@ export function LeagueTabs() {
               )
             }
           >
-            {tab.label}
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <Suit kind={tab.suit} size={14} />
+              {tab.label}
+            </span>
           </NavLink>
         ))}
       </nav>

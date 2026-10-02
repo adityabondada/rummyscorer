@@ -17,10 +17,13 @@ import {
   parseLeague,
   parsePlayer,
   parseRound,
+  parseSettled,
   playersPath,
   roundsPath,
+  settledPath,
   type GameDoc,
   type LeagueDoc,
+  type SettledDoc,
 } from '@rummy/data';
 import type { GameState } from '@rummy/engine';
 import { EngineError } from '@rummy/engine';
@@ -148,6 +151,16 @@ export function useGames(leagueId: string): Loaded<GameRow[]> {
         .map((r) => ({ id: r.id, doc: r.data }))
         .sort((a, b) => b.doc.createdAt - a.doc.createdAt),
     [],
+  );
+}
+
+/** Payments marked as paid, by record id. */
+export function useSettled(leagueId: string): Loaded<Record<string, SettledDoc>> {
+  return useSnapshot(
+    leagueId,
+    () => collection(db, settledPath(leagueId)),
+    (rows) => Object.fromEntries(parseEach(rows, parseSettled).map((r) => [r.id, r.data])),
+    {},
   );
 }
 

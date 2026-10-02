@@ -51,6 +51,53 @@ export function ReasonModal({
   );
 }
 
+/** A plain "are you sure" for something that can't be undone. */
+export function ConfirmModal({
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-600">{description}</p>
+        <ErrorText>{error}</ErrorText>
+        <div className="flex gap-2">
+          <Button variant="secondary" className="flex-1" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            className="flex-1"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              const problem = await onConfirm();
+              if (problem) {
+                setError(problem);
+                setBusy(false);
+              }
+            }}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /** Pick which round to roll back to; everything after it is scrapped in one step. */
 export function RollbackModal({
   liveSeqs,

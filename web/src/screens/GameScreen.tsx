@@ -1,8 +1,9 @@
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { rejoinEligibility, type Round } from '@rummy/engine';
 import { gamePath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
+import { deleteGame, errorMessage } from '../api';
 import { db } from '../firebase';
 import { useLiveGame } from '../hooks';
 import {
@@ -27,7 +28,7 @@ import {
   type RoundRow,
 } from '../lib/game';
 import { Badge, Button, Card, ErrorText, Loading, Page } from '../ui';
-import { RejoinModal, ReasonModal, RollbackModal, SplitModal } from './game/Modals';
+import { ConfirmModal, RejoinModal, ReasonModal, RollbackModal, SplitModal } from './game/Modals';
 import { ResultCard } from './game/ResultCard';
 import { RoundEntry } from './game/RoundEntry';
 import { RoundList } from './game/RoundList';
@@ -40,10 +41,12 @@ type Dialog =
   | { kind: 'scrap' }
   | { kind: 'rollback' }
   | { kind: 'rejoin'; playerId: string; entryScore: number }
-  | { kind: 'split' };
+  | { kind: 'split' }
+  | { kind: 'delete' };
 
 export function GameScreen() {
   const { gameId = '' } = useParams();
+  const navigate = useNavigate();
   const { leagueId, uid, players, names } = useLeagueContext();
   const live = useLiveGame(leagueId, gameId, players);
   const { game, rows, state } = live;
@@ -276,6 +279,12 @@ export function GameScreen() {
         onEdit={state ? (row) => setDialog({ kind: 'edit', row }) : null}
       />
 
+      <div className="border-t border-slate-200 pt-4">
+        <Button variant="danger" small onClick={() => setDialog({ kind: 'delete' })}>
+          Delete this game
+        </Button>
+      </div>
+
       {dialog?.kind === 'round' && state && !finished && (
         <RoundEntry
           title={`Round ${state.rounds.length + 1}`}
@@ -328,6 +337,24 @@ export function GameScreen() {
           onConfirm={(seat) =>
             apply(planRejoin(game, rows, players, dialog.playerId, seat, uid, now()))
           }
+          onClose={close}
+        />
+      )}
+
+      {dialog?.kind === 'delete' && (
+        <ConfirmModal
+          title="Delete this game?"
+          description="The game, all its rounds and its results are removed for good, and it stops counting in stats and in who owes whom. The league log keeps a note that it was deleted. This can't be undone."
+          confirmLabel="Delete game"
+          onConfirm={async () => {
+            try {
+              await deleteGame({ leagueId, gameId });
+              navigate(`/l/${leagueId}`, { replace: true });
+              return null;
+            } catch (e) {
+              return errorMessage(e);
+            }
+          }}
           onClose={close}
         />
       )}

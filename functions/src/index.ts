@@ -3,6 +3,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
+import { deleteGame } from './games';
 import { createLeague, joinLeague, regenerateInvite, removeMember } from './leagues';
 import { mergePlayers, unmergePlayers } from './merge';
 import { recomputeGame, splitChanged } from './recompute';
@@ -91,6 +92,16 @@ export const unmergePlayersFn = onCall(callableOptions, (request) =>
     Date.now(),
   ),
 );
+
+export const deleteGameFn = onCall(callableOptions, async (request) => {
+  await deleteGame(
+    db(),
+    callerUid(request),
+    { leagueId: request.data?.leagueId, gameId: request.data?.gameId },
+    Date.now(),
+  );
+  return { ok: true };
+});
 
 /** A round was entered, edited, scrapped or restored: refresh the game's status and summary. */
 export const onRoundWrite = onDocumentWritten(

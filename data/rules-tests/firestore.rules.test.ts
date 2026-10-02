@@ -375,6 +375,68 @@ describe('rounds', () => {
   });
 });
 
+describe('settled payments', () => {
+  const key = '2026-10-03_p1_p2_10';
+  const record = { day: '2026-10-03', from: 'p1', to: 'p2', amount: 10, by: 'member', at: 5 };
+  const ref = (uid: string, id = key) => doc(as(uid), `leagues/${L}/settled/${id}`);
+
+  it('can be marked paid by any member', async () => {
+    await assertSucceeds(setDoc(ref('member'), record));
+    await assertSucceeds(
+      setDoc(ref('admin', '2026-10-03_p2_p1_5'), {
+        ...record,
+        from: 'p2',
+        to: 'p1',
+        amount: 5,
+        by: 'admin',
+      }),
+    );
+  });
+
+  it('can be read by members only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `leagues/${L}/settled/${key}`), record);
+    });
+    await assertSucceeds(getDoc(ref('member')));
+    await assertFails(getDoc(ref('outsider')));
+    await assertFails(getDoc(doc(anon(), `leagues/${L}/settled/${key}`)));
+  });
+
+  it("cannot be marked by outsiders or in someone else's name", async () => {
+    await assertFails(setDoc(ref('outsider'), { ...record, by: 'outsider' }));
+    await assertFails(setDoc(ref('member'), { ...record, by: 'admin' }));
+  });
+
+  it('must have an id that says exactly what it is', async () => {
+    await assertFails(setDoc(ref('member', 'anything'), record));
+    await assertFails(setDoc(ref('member', '2026-10-03_p1_p2_11'), record));
+    await assertFails(setDoc(ref('member', '2026-10-04_p1_p2_10'), record));
+    await assertFails(setDoc(ref('member', '2026-10-03_p2_p1_10'), record));
+  });
+
+  it('must be a real payment on a real date', async () => {
+    const make = (over: object) => {
+      const r = { ...record, ...over };
+      return setDoc(ref('member', `${r.day}_${r.from}_${r.to}_${r.amount}`), r);
+    };
+    await assertFails(make({ amount: 0 }));
+    await assertFails(make({ amount: -5 }));
+    await assertFails(make({ amount: 2.5 }));
+    await assertFails(make({ to: 'p1' }));
+    await assertFails(make({ day: 'tonight' }));
+    await assertFails(setDoc(ref('member'), { ...record, extra: true }));
+  });
+
+  it('can be undone by any member, but never edited', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `leagues/${L}/settled/${key}`), record);
+    });
+    await assertFails(updateDoc(ref('member'), { amount: 20 }));
+    await assertFails(deleteDoc(ref('outsider')));
+    await assertSucceeds(deleteDoc(ref('admin')));
+  });
+});
+
 describe('log', () => {
   it('can be read by members, never written from the client', async () => {
     await assertSucceeds(getDoc(doc(as('member'), `leagues/${L}/log/e1`)));

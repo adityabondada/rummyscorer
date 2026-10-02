@@ -5,6 +5,8 @@ import { settledKey, settledPath, type SettledDoc } from '@rummy/data';
 import type { Transfer } from '@rummy/engine';
 import { db } from '../firebase';
 import { useGames, useSettled } from '../hooks';
+import { InstallPrompt } from '../InstallPrompt';
+import { pickablePlayers } from '../lib/names';
 import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
 import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
@@ -93,18 +95,47 @@ export function GamesTab() {
     }
   };
 
+  const empty = !games.loading && games.value.length === 0;
+  const enoughPlayers = pickablePlayers(players).length >= 2;
+
   return (
     <>
-      <Link to="new-game" className="block">
-        <Button className="w-full">New game</Button>
-      </Link>
+      <InstallPrompt />
+      {!empty && (
+        <Link to="new-game" className="block">
+          <Button className="w-full">New game</Button>
+        </Link>
+      )}
 
       <ErrorText>{error}</ErrorText>
 
       {games.loading ? (
         <Loading />
-      ) : games.value.length === 0 ? (
-        <EmptyState title="Deal the first game">Add your players, then start a game.</EmptyState>
+      ) : empty ? (
+        enoughPlayers ? (
+          <EmptyState
+            title="Deal the first game"
+            action={
+              <Link to="new-game">
+                <Button>Start your first game</Button>
+              </Link>
+            }
+          >
+            Pick who is playing and the rules, then start scoring.
+          </EmptyState>
+        ) : (
+          <EmptyState
+            title="Add your players first"
+            action={
+              <Link to="players">
+                <Button>Add players</Button>
+              </Link>
+            }
+          >
+            A game needs at least two players. Add the people at your table, or share the invite so
+            they can join.
+          </EmptyState>
+        )
       ) : (
         nights(games.value).map((night) => (
           <Card key={night.day} className="space-y-3">

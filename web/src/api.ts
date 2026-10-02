@@ -16,6 +16,11 @@ export const joinLeague = callable<
   { leagueId: string; playerId: string }
 >('joinLeagueFn');
 
+/** Works before signing in: the league an invite link is for. */
+export const inviteInfo = callable<{ code: string }, { leagueName: string; members: number }>(
+  'inviteInfoFn',
+);
+
 export const regenerateInvite = callable<{ leagueId: string }, { inviteCode: string }>(
   'regenerateInviteFn',
 );

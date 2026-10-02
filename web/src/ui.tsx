@@ -1,6 +1,7 @@
 import {
   useEffect,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
@@ -41,9 +42,16 @@ export function Button({
   );
 }
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+  ...rest
+}: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cx('rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200', className)}>
+    <section
+      className={cx('rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200', className)}
+      {...rest}
+    >
       {children}
     </section>
   );

@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useMatch } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { CardBackdrop } from './backdrop';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -17,8 +17,11 @@ import { Loading } from './ui';
 
 function Routed() {
   const { user, loading } = useAuth();
+  const invite = useMatch('/join/:code')?.params.code;
   if (loading) return <Loading />;
-  if (!user) return <SignInScreen />;
+  // Someone arriving from an invite link sees which league it is for before they sign in. The
+  // address stays the same, so after signing in they land on the join page.
+  if (!user) return <SignInScreen invite={invite} />;
   return (
     <>
       <CardBackdrop />

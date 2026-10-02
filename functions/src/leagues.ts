@@ -2,6 +2,7 @@ import {
   COLLECTIONS,
   leaguePath,
   logPath,
+  parseLeague,
   parsePlayer,
   playersPath,
   type LeagueDoc,
@@ -106,6 +107,28 @@ export async function joinLeague(
     }
     return { leagueId, playerId };
   });
+}
+
+/**
+ * What an invite link is for, so someone can see which league they are being asked to join before
+ * they sign in. Needs no sign-in, so it gives away as little as possible: the league's name and how
+ * many people are in it. No names, and nothing about games or money.
+ */
+export async function inviteInfo(
+  db: Firestore,
+  args: { code: unknown },
+): Promise<{ leagueName: string; members: number }> {
+  if (typeof args.code !== 'string')
+    throw new HttpsError('invalid-argument', 'An invite code is required');
+  const code = normalizeInviteCode(args.code);
+  const found =
+    code === ''
+      ? null
+      : await db.collection(COLLECTIONS.leagues).where('inviteCode', '==', code).limit(1).get();
+  const match = found?.docs[0];
+  if (!match) throw new HttpsError('not-found', 'That invite code is not valid');
+  const league = parseLeague(match.data());
+  return { leagueName: league.name, members: league.memberUids.length };
 }
 
 /** Replaces the invite code, which stops every old link and code from working. Admin only. */

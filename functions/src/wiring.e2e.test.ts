@@ -54,6 +54,8 @@ interface CallBody {
     ok?: boolean;
     games?: number;
     updated?: number;
+    leagueName?: string;
+    members?: number;
   };
   error?: { status?: string };
 }
@@ -309,5 +311,24 @@ describe('recomputeLeagueFn', () => {
     const players = (await ref.get()).data()!.summary.players;
     expect(players[a]).toMatchObject({ roundsWon: 2, penalties: 0 });
     expect(players[b]).toMatchObject({ roundsWon: 0, penalties: 0 });
+  });
+});
+
+describe('inviteInfoFn', () => {
+  it('works with nobody signed in, and gives only the league name and size', async () => {
+    const created = await call(
+      'createLeagueFn',
+      { name: 'Open house', displayName: 'Admin' },
+      admin,
+    );
+    const { inviteCode } = created.body.result;
+    const res = await call('inviteInfoFn', { code: inviteCode });
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual({ leagueName: 'Open house', members: 1 });
+  });
+
+  it('says not found for a code that is not real', async () => {
+    const res = await call('inviteInfoFn', { code: 'NOSUCHCD' });
+    expect(res.body.error?.status).toBe('NOT_FOUND');
   });
 });

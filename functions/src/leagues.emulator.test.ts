@@ -1,6 +1,6 @@
 import { logPath, parseLeague, parsePlayer, playersPath, leaguePath } from '@rummy/data';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createLeague, joinLeague, regenerateInvite, removeMember } from './leagues';
+import { createLeague, inviteInfo, joinLeague, regenerateInvite, removeMember } from './leagues';
 import { CODE_LENGTH } from './inviteCode';
 import { caught, clearDb, NOW, readPlayer, seedLeague, testDb } from './testing';
 
@@ -114,6 +114,43 @@ describe('joinLeague', () => {
     expect(again.playerId).toBe(profiles.u2);
     expect((await readPlayer(db, leagueId, profiles.u2!)).retired).toBe(false);
     expect((await readLeague(leagueId)).memberUids).toContain('u2');
+  });
+});
+
+describe('inviteInfo', () => {
+  it('gives the league name and how many people are in it, and nothing else', async () => {
+    const { inviteCode } = await seedLeague(db, ['u2', 'u3']);
+    const info = await inviteInfo(db, { code: inviteCode });
+    expect(info).toEqual({ leagueName: 'Friday Rummy', members: 3 });
+  });
+
+  it('accepts the code in lower case with spaces or dashes, as joining does', async () => {
+    const { inviteCode } = await seedLeague(db);
+    const messy = `${inviteCode.slice(0, 4)}-${inviteCode.slice(4)}`.toLowerCase();
+    expect(await inviteInfo(db, { code: messy })).toMatchObject({ leagueName: 'Friday Rummy' });
+  });
+
+  it('counts people as they join', async () => {
+    const { inviteCode } = await seedLeague(db);
+    await joinLeague(db, 'u9', { code: inviteCode, displayName: 'Ravi' }, NOW);
+    expect(await inviteInfo(db, { code: inviteCode })).toMatchObject({ members: 2 });
+  });
+
+  it('says not found for a code that does not exist, is blank, or was replaced', async () => {
+    const { leagueId, inviteCode } = await seedLeague(db);
+    for (const code of ['NOSUCHCD', '', '  -- ']) {
+      expect(await caught(() => inviteInfo(db, { code }))).toMatchObject({ code: 'not-found' });
+    }
+    await regenerateInvite(db, 'admin', { leagueId }, NOW);
+    expect(await caught(() => inviteInfo(db, { code: inviteCode }))).toMatchObject({
+      code: 'not-found',
+    });
+  });
+
+  it('needs a code', async () => {
+    expect(await caught(() => inviteInfo(db, { code: undefined }))).toMatchObject({
+      code: 'invalid-argument',
+    });
   });
 });
 

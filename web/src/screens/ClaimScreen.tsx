@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { errorMessage, mergePlayers } from '../api';
 import { unclaimedGuests } from '../lib/names';
@@ -28,18 +28,12 @@ export function ClaimScreen() {
 
   const leave = () => navigate(`/l/${leagueId}`, { replace: true });
 
-  if (guests.length === 0) {
-    return (
-      <Page title="Welcome">
-        <Card className="space-y-3">
-          <p className="text-slate-600">
-            You're in. There are no guest players waiting to be claimed.
-          </p>
-          <Button onClick={leave}>Go to the league</Button>
-        </Card>
-      </Page>
-    );
-  }
+  // With nobody to claim there is nothing to ask, so go straight to the league.
+  const nothingToClaim = guests.length === 0;
+  useEffect(() => {
+    if (nothingToClaim) navigate(`/l/${leagueId}`, { replace: true });
+  }, [nothingToClaim, leagueId, navigate]);
+  if (nothingToClaim) return null;
 
   return (
     <Page title="Are you one of these players?">

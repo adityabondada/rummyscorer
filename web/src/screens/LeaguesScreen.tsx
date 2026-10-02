@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createLeague, errorMessage, joinLeague } from '../api';
 import { useUser } from '../auth';
 import { useMyLeagues } from '../hooks';
+import { InstallPrompt } from '../InstallPrompt';
 import { EmptyState } from '../suits';
 import { Button, Card, ErrorText, Field, Loading, Page } from '../ui';
 
@@ -62,6 +63,8 @@ export function LeaguesScreen() {
         </Link>
       }
     >
+      <InstallPrompt />
+
       {leagues.loading ? (
         <Loading />
       ) : leagues.value.length === 0 ? (

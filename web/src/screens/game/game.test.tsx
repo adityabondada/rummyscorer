@@ -44,6 +44,7 @@ const stateWith = (rounds: Round[] = [], overrides = {}): GameState =>
       doc: {
         seq: r.seq,
         winnerId: r.winnerId,
+        penalty: r.penalty ?? null,
         entries: r.entries,
         rejoins: r.rejoins ?? [],
         scrapped: null,

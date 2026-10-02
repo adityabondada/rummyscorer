@@ -35,6 +35,17 @@ const round = (seq: number, winnerId: string, entries: Round['entries']): Round 
   winnerId,
   entries,
 });
+const penaltyRound = (
+  seq: number,
+  playerId: string,
+  points: number,
+  entries: Round['entries'] = {},
+): Round => ({
+  seq,
+  winnerId: null,
+  penalty: { playerId, points, reason: 'wrongShow' },
+  entries,
+});
 const pts = (points: number) => ({ kind: 'points' as const, points });
 
 describe('parsing stored documents', () => {
@@ -114,6 +125,7 @@ describe('parsing stored documents', () => {
     const doc: RoundDoc = {
       seq: 2,
       winnerId: 'A',
+      penalty: null,
       entries: { B: { kind: 'drop' }, C: { kind: 'middleDrop' }, D: pts(30) },
       rejoins: [{ playerId: 'C', seatIndex: 1 }],
       scrapped: { by: 'u1', at: 5, reason: 'typo' },
@@ -124,6 +136,42 @@ describe('parsing stored documents', () => {
     expect(parseRound(doc)).toEqual(doc);
     const { rejoins: _r, history: _h, ...minimal } = { ...doc, scrapped: null };
     expect(parseRound(minimal)).toMatchObject({ rejoins: [], history: [], scrapped: null });
+  });
+
+  it('reads a penalty round, which has no winner', () => {
+    const doc: RoundDoc = {
+      seq: 3,
+      winnerId: null,
+      penalty: { playerId: 'B', points: 80, reason: 'wrongShow' },
+      entries: { A: pts(0), C: { kind: 'drop' } },
+      rejoins: [],
+      scrapped: null,
+      updatedBy: 'u1',
+      updatedAt: 6,
+      history: [],
+    };
+    expect(parseRound(doc)).toEqual(doc);
+  });
+
+  it('reads rounds saved before penalties existed as ordinary rounds', () => {
+    const doc = newRoundDoc(round(1, 'A', { B: pts(5) }), 'u1', 1);
+    const { penalty: _p, ...old } = doc;
+    expect(parseRound(old)).toMatchObject({ winnerId: 'A', penalty: null });
+  });
+
+  it('rejects a penalty with an unknown reason or no player', () => {
+    const doc = newRoundDoc(penaltyRound(1, 'B', 80), 'u1', 1);
+    expect(() => parseRound({ ...doc, penalty: { ...doc.penalty, reason: 'cheating' } })).toThrow(
+      'known reason',
+    );
+    expect(() => parseRound({ ...doc, penalty: { points: 80, reason: 'error' } })).toThrow(
+      'penalty.playerId',
+    );
+  });
+
+  it('rejects an ordinary round with no winner', () => {
+    const doc = newRoundDoc(round(1, 'A', { B: pts(5) }), 'u1', 1);
+    expect(() => parseRound({ ...doc, winnerId: null })).toThrow('winnerId');
   });
 
   it('rejects an unknown entry type', () => {
@@ -171,6 +219,58 @@ describe('round documents', () => {
     const doc = changeRoundDoc(first, { scrapped: scrap }, 'u1', 5);
     expect(roundDocToEngine(doc)).toMatchObject({ seq: 1, winnerId: 'A', scrapped: scrap });
     expect(roundDocToEngine(first).scrapped).toBeNull();
+  });
+});
+
+describe('penalty round documents', () => {
+  const doc = newRoundDoc(penaltyRound(2, 'B', 80), 'u1', 100);
+
+  it('are stored with no winner and the penalty', () => {
+    expect(doc).toMatchObject({
+      winnerId: null,
+      penalty: { playerId: 'B', points: 80, reason: 'wrongShow' },
+    });
+  });
+
+  it('keep the penalty in history when it is changed, and when the round is scrapped', () => {
+    const edited = changeRoundDoc(
+      doc,
+      { penalty: { playerId: 'B', points: 40, reason: 'error' } },
+      'u2',
+      200,
+    );
+    expect(edited.penalty).toEqual({ playerId: 'B', points: 40, reason: 'error' });
+    expect(edited.history[0]!.prev.penalty).toEqual({
+      playerId: 'B',
+      points: 80,
+      reason: 'wrongShow',
+    });
+    const scrapped = changeRoundDoc(
+      edited,
+      { scrapped: { by: 'u', at: 1, reason: 'x' } },
+      'u',
+      300,
+    );
+    expect(scrapped.penalty).toEqual(edited.penalty);
+    expect(scrapped.history[1]!.prev.penalty).toEqual(edited.penalty);
+  });
+
+  it('give the engine the same penalty round', () => {
+    expect(roundDocToEngine(doc)).toMatchObject({
+      winnerId: null,
+      penalty: { playerId: 'B', points: 80, reason: 'wrongShow' },
+    });
+  });
+
+  it('replay: the player with the penalty gets the count and the others 0', () => {
+    const state = replay(
+      gameInput(game(), [
+        newRoundDoc(penaltyRound(1, 'B', 80, { A: pts(0), C: { kind: 'drop' } }), 'u1', 1),
+      ]),
+    );
+    expect(state.players.B!.total).toBe(80);
+    expect(state.players.A!.total).toBe(0);
+    expect(state.players.C!.total).toBe(20);
   });
 });
 

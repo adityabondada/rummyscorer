@@ -4,6 +4,7 @@ import {
   type GameInput,
   type GameState,
   type PlayerId,
+  type Penalty,
   type PlayerState,
   type Rejoin,
   type Round,
@@ -131,6 +132,22 @@ function applyEntry(
   return entry.kind === 'drop' ? settings.dropPoints : settings.middleDropPoints;
 }
 
+function checkPenalty(state: GameState, penalty: Penalty, active: PlayerId[]): void {
+  if (!active.includes(penalty.playerId))
+    throw new EngineError('The penalty player is not playing');
+  if (penalty.reason !== 'wrongShow' && penalty.reason !== 'error') {
+    throw new EngineError('Unknown penalty reason');
+  }
+  const { points } = penalty;
+  if (!Number.isInteger(points) || points <= 0) {
+    throw new EngineError('A penalty needs a whole number of points above 0');
+  }
+  const cap = state.settings.maxRoundPenalty;
+  if (cap !== null && points > cap) {
+    throw new EngineError(`The penalty is more than the ${cap} cap`);
+  }
+}
+
 interface DealerCursor {
   id: PlayerId;
   skip: Set<PlayerId>;
@@ -186,11 +203,31 @@ export function applyRound(prev: GameState, round: Round): GameState {
   const state = structuredClone(prev);
   const active = activeIds(state);
 
-  if (!active.includes(round.winnerId)) throw new EngineError('The round winner is not playing');
-  const expected = active.filter((id) => id !== round.winnerId);
+  const penalty = round.penalty ?? null;
+  if (penalty) {
+    if (round.winnerId !== null) throw new EngineError('A penalty round has no winner');
+    checkPenalty(state, penalty, active);
+  } else if (round.winnerId === null || !active.includes(round.winnerId)) {
+    throw new EngineError('The round winner is not playing');
+  }
+  // The one who scores without an entry: the winner, or the player with the penalty.
+  const special = penalty ? penalty.playerId : round.winnerId;
+  const expected = active.filter((id) => id !== special);
   const given = Object.keys(round.entries);
   if (given.length !== expected.length || expected.some((id) => !(id in round.entries))) {
-    throw new EngineError('Entries must cover every active player except the winner');
+    throw new EngineError(
+      penalty
+        ? 'Entries must cover every active player except the one with the penalty'
+        : 'Entries must cover every active player except the winner',
+    );
+  }
+  if (penalty) {
+    for (const id of expected) {
+      const entry = round.entries[id]!;
+      if (entry.kind === 'points' && entry.points !== 0) {
+        throw new EngineError('In a penalty round only the player with the penalty scores');
+      }
+    }
   }
 
   const dealerId = state.dealerId!;
@@ -198,6 +235,7 @@ export function applyRound(prev: GameState, round: Round): GameState {
     seq: round.seq,
     dealerId,
     winnerId: round.winnerId,
+    penalty: penalty ? { ...penalty } : null,
     points: {},
     entries: structuredClone(round.entries),
     eliminated: [],
@@ -207,7 +245,11 @@ export function applyRound(prev: GameState, round: Round): GameState {
   for (const id of active) {
     const player = state.players[id]!;
     const points =
-      id === round.winnerId ? 0 : applyEntry(state.settings, player, round.entries[id]);
+      id === special
+        ? penalty
+          ? penalty.points
+          : 0
+        : applyEntry(state.settings, player, round.entries[id]);
     record.points[id] = points;
     player.total += points;
     player.roundsPlayed += 1;
@@ -221,6 +263,7 @@ export function applyRound(prev: GameState, round: Round): GameState {
 
   const remaining = activeIds(state);
   const rejoins = round.rejoins ?? [];
+  if (remaining.length === 0) throw new EngineError('That would put every player out of the game');
   if (remaining.length === 1) {
     if (rejoins.length > 0) throw new EngineError('The game ended, so nobody can rejoin');
     state.status = 'finished';
@@ -290,7 +333,10 @@ function resolveInput(input: GameInput, resolve: ResolveId): GameInput {
     seatOrder: input.seatOrder.map(resolve),
     rounds: input.rounds.map((round) => ({
       ...round,
-      winnerId: resolve(round.winnerId),
+      winnerId: round.winnerId === null ? null : resolve(round.winnerId),
+      penalty: round.penalty
+        ? { ...round.penalty, playerId: resolve(round.penalty.playerId) }
+        : null,
       entries: remap(round.entries, resolve),
       rejoins: round.rejoins?.map((r) => ({ ...r, playerId: resolve(r.playerId) })),
     })),

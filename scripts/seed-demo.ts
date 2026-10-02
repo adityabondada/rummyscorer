@@ -71,7 +71,29 @@ function playGame(ids: string[], seed: number): Round[] {
           ? { kind: rand() < 0.5 ? 'drop' : 'middleDrop' }
           : { kind: 'points', points: int(5, 60) };
     }
-    const round: Round = { seq, winnerId, entries };
+    let round: Round = { seq, winnerId, entries };
+    // Now and then somebody shows a wrong hand: they take the most and the rest score nothing.
+    if (active.length >= 3 && rand() < 0.1) {
+      const culprit = active[int(0, active.length - 1)]!;
+      const others: Record<string, RoundEntry> = {};
+      for (const id of active.filter((p) => p !== culprit)) {
+        const p = state.players[id]!;
+        others[id] =
+          p.dropsLeft > 0 && rand() < 0.2 ? { kind: 'drop' } : { kind: 'points', points: 0 };
+      }
+      const penalty: Round = {
+        seq,
+        winnerId: null,
+        penalty: { playerId: culprit, points: 80, reason: rand() < 0.7 ? 'wrongShow' : 'error' },
+        entries: others,
+      };
+      try {
+        applyRound(state, penalty);
+        round = penalty;
+      } catch {
+        // Not allowed in this position, so it stays an ordinary round.
+      }
+    }
     state = applyRound(state, round);
     rounds.push(round);
   }

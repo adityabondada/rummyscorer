@@ -33,19 +33,43 @@ function randomGame(seed: number): GameInput {
 
   for (let seq = 1; seq <= 120 && state.status === 'inProgress'; seq++) {
     const active = activeIds(state);
-    const winnerId = pick(active);
-    const entries: Record<PlayerId, RoundEntry> = {};
-    for (const id of active.filter((p) => p !== winnerId)) {
-      const player = state.players[id]!;
-      const cap = gameSettings.maxRoundPenalty ?? 120;
-      if (player.dropsLeft > 0 && rand() < 0.25) {
-        entries[id] = { kind: rand() < 0.5 ? 'drop' : 'middleDrop' };
-      } else {
-        entries[id] = { kind: 'points', points: int(1, cap) };
+    const cap = gameSettings.maxRoundPenalty ?? 120;
+    const winnerRound = (): Round => {
+      const winnerId = pick(active);
+      const entries: Record<PlayerId, RoundEntry> = {};
+      for (const id of active.filter((p) => p !== winnerId)) {
+        const player = state.players[id]!;
+        if (player.dropsLeft > 0 && rand() < 0.25) {
+          entries[id] = { kind: rand() < 0.5 ? 'drop' : 'middleDrop' };
+        } else {
+          entries[id] = { kind: 'points', points: int(1, cap) };
+        }
       }
+      return { seq, winnerId, entries };
+    };
+    // Now and then one player takes a penalty and the others score nothing, unless they dropped.
+    const penaltyRound = (): Round => {
+      const playerId = pick(active);
+      const entries: Record<PlayerId, RoundEntry> = {};
+      for (const id of active.filter((p) => p !== playerId)) {
+        const player = state.players[id]!;
+        entries[id] =
+          player.dropsLeft > 0 && rand() < 0.3
+            ? { kind: rand() < 0.5 ? 'drop' : 'middleDrop' }
+            : { kind: 'points', points: 0 };
+      }
+      const reason = rand() < 0.5 ? ('wrongShow' as const) : ('error' as const);
+      return { seq, winnerId: null, penalty: { playerId, points: int(1, cap), reason }, entries };
+    };
+    let plain = rand() < 0.15 ? penaltyRound() : winnerRound();
+    let afterScoring: GameState;
+    try {
+      afterScoring = applyRound(state, plain);
+    } catch {
+      // A penalty that would put everyone out isn't allowed; play an ordinary round instead.
+      plain = winnerRound();
+      afterScoring = applyRound(state, plain);
     }
-    const plain: Round = { seq, winnerId, entries };
-    const afterScoring = applyRound(state, plain);
 
     const rejoins: Rejoin[] = [];
     if (afterScoring.status === 'inProgress') {

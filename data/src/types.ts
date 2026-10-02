@@ -1,6 +1,7 @@
 import type {
   GameOutcome,
   GameSettings,
+  Penalty,
   PlayerId,
   Rejoin,
   RoundEntry,
@@ -72,7 +73,10 @@ export interface GameDoc {
 
 /** What a round looked like before an edit, scrap or restore. */
 export interface RoundSnapshot {
-  winnerId: PlayerId;
+  /** null in a penalty round, which nobody won. */
+  winnerId: PlayerId | null;
+  /** Set when one player took a penalty and the others scored 0 (unless they dropped). */
+  penalty: Penalty | null;
   entries: Record<PlayerId, RoundEntry>;
   rejoins: Rejoin[];
   scrapped: ScrapInfo | null;

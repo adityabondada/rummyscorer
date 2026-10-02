@@ -182,3 +182,49 @@ describe('recomputeGame', () => {
     expect((await readGame(db, leagueId, gameId)).summary).toMatchObject({ pot: 50 });
   });
 });
+
+describe('recomputeGame with penalty rounds', () => {
+  it('finishes a game that was decided by penalties, with nobody credited with a win', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
+    const [a, b, c] = [profiles.admin!, profiles.u2!, profiles.u3!];
+    const gameId = await addGame(db, leagueId, [a, b, c]);
+    // With a limit of 50: C is out after a 60 penalty, then B after a 55 penalty, so A wins.
+    await addRound(db, leagueId, gameId, {
+      seq: 1,
+      winnerId: null,
+      penalty: { playerId: c, points: 60, reason: 'wrongShow' },
+      entries: { [a]: pts(0), [b]: pts(0) },
+    });
+    await addRound(db, leagueId, gameId, {
+      seq: 2,
+      winnerId: null,
+      penalty: { playerId: b, points: 55, reason: 'error' },
+      entries: { [a]: pts(0) },
+    });
+
+    expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('updated');
+    const game = await readGame(db, leagueId, gameId);
+    expect(game.status).toBe('finished');
+    expect(game.summaryError).toBeNull();
+    expect(game.summary).toMatchObject({ outcome: 'outright', winnerIds: [a], pot: 30, rounds: 2 });
+    expect(game.summary.players[a]).toMatchObject({ net: 20, position: 1 });
+    expect(game.summary.players[b]).toMatchObject({ net: -10, position: 2 });
+    expect(game.summary.players[c]).toMatchObject({ net: -10, position: 3 });
+  });
+
+  it('records why when a penalty names someone who is not playing', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2']);
+    const [a, b] = [profiles.admin!, profiles.u2!];
+    const gameId = await addGame(db, leagueId, [a, b]);
+    await addRound(db, leagueId, gameId, {
+      seq: 1,
+      winnerId: null,
+      penalty: { playerId: 'someone-else', points: 20, reason: 'error' },
+      entries: { [a]: pts(0), [b]: pts(0) },
+    });
+    expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('updated');
+    const game = await readGame(db, leagueId, gameId);
+    expect(game.status).toBe('inProgress');
+    expect(game.summaryError).toContain('not playing');
+  });
+});

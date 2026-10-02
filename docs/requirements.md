@@ -69,10 +69,21 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 
 **Round entry**
 
-- Mark the round winner, who scores 0. Every round has exactly one winner, so at least one player always stays under the limit.
+- Mark the round winner, who scores 0. An ordinary round has exactly one winner, so at least one player always stays under the limit.
 - For everyone else, enter penalty points, or tap Drop or Middle drop to apply the configured points.
 - Each player shows drops remaining (e.g. "1 of 2 left"). At the limit, drop buttons are disabled and actual points must be entered.
 - Drop usage is stored per round, so edits and scraps recalculate it correctly.
+
+**Penalty rounds**
+
+A round can be entered as a penalty round instead of an ordinary one, when a player makes a mistake such as showing a hand that isn't valid (a wrong show), or any other error.
+
+- Nobody wins a penalty round. One player takes the penalty, and everyone else scores 0.
+- The penalty starts at the game's max penalty per round (80 by default) and can be changed, for example to a smaller penalty for a smaller mistake. It can't be more than the cap. If the game has no cap, the points are typed in.
+- Players who dropped in that round keep their drop points (and use up the drop), as in any other round. Everyone else who played scores 0.
+- Each penalty round records a reason, Wrong show or Other error, shown in the round list.
+- It counts as a round in every other way: the deal moves on, a player who goes past the limit is out, and rejoins can follow it. It can be edited, scrapped and restored like any round, and an ordinary round can be changed into a penalty round (and the other way) by editing it.
+- A penalty round can't leave the game with nobody in it.
 
 **Elimination**
 
@@ -165,7 +176,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 - `leagues/{leagueId}` — name, adminUid, inviteCode, memberUids, createdAt.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
 - `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
-- `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId, entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
+- `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId (null in a penalty round), penalty (nullable: player, points, reason; absent on rounds saved before penalty rounds existed), entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.
 

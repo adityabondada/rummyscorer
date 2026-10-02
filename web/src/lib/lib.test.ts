@@ -95,6 +95,7 @@ describe('game state', () => {
 describe('buildRound', () => {
   const state = () => gameState(game(), [], players());
   const form = (winnerId: string | null, entries: RoundForm['entries']): RoundForm => ({
+    ...emptyForm(),
     winnerId,
     entries,
   });
@@ -166,7 +167,8 @@ describe('buildRound', () => {
       winnerId: 'a',
       entries: { b: pts(10), c: { kind: 'drop' } },
     });
-    expect(f).toEqual({
+    expect(f).toMatchObject({
+      mode: 'win',
       winnerId: 'a',
       entries: { b: { kind: 'points', points: '10' }, c: { kind: 'drop' } },
     });

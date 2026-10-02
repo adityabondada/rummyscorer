@@ -291,6 +291,68 @@ describe('rounds', () => {
     await assertFails(setDoc(ref('member', 'g'), { ...newRound, extra: 1 }));
   });
 
+  describe('penalty rounds', () => {
+    const penalty = { playerId: 'p2', points: 80, reason: 'wrongShow' };
+    const penaltyRound = { ...newRound, winnerId: null, penalty };
+
+    it('can be entered with no winner and a penalty', async () => {
+      await assertSucceeds(setDoc(ref('member', 'pen'), { ...penaltyRound, seq: 2 }));
+      await assertSucceeds(
+        setDoc(ref('member', 'pen2'), {
+          ...penaltyRound,
+          seq: 3,
+          penalty: { ...penalty, reason: 'error', points: 40 },
+        }),
+      );
+    });
+
+    it('can be entered as an ordinary round with no penalty field, or a null one', async () => {
+      await assertSucceeds(setDoc(ref('member', 'a'), { ...newRound, seq: 2 }));
+      await assertSucceeds(setDoc(ref('member', 'b'), { ...newRound, seq: 3, penalty: null }));
+    });
+
+    it('needs either a winner or a penalty, never both or neither', async () => {
+      await assertFails(setDoc(ref('member', 'a'), { ...penaltyRound, seq: 2, winnerId: 'p1' }));
+      await assertFails(setDoc(ref('member', 'b'), { ...newRound, seq: 2, winnerId: null }));
+      await assertFails(
+        setDoc(ref('member', 'c'), { ...newRound, seq: 2, penalty: { ...penalty } }),
+      );
+    });
+
+    it('needs a real penalty: a player, whole points above 0, and a known reason', async () => {
+      const bad = (extra: object) =>
+        setDoc(ref('member', 'x'), { ...penaltyRound, seq: 2, penalty: { ...penalty, ...extra } });
+      await assertFails(bad({ playerId: 7 }));
+      await assertFails(bad({ points: 0 }));
+      await assertFails(bad({ points: -5 }));
+      await assertFails(bad({ points: 12.5 }));
+      await assertFails(bad({ points: '80' }));
+      await assertFails(bad({ reason: 'cheating' }));
+      await assertFails(
+        setDoc(ref('member', 'y'), { ...penaltyRound, seq: 2, penalty: 'wrong show' }),
+      );
+    });
+
+    it('can be changed into a penalty round, with the old values going into history', async () => {
+      await assertSucceeds(
+        setDoc(ref('member'), {
+          ...edited('member'),
+          winnerId: null,
+          penalty,
+          history: [
+            { ...historyEntry('member'), prev: { ...historyEntry('member').prev, penalty: null } },
+          ],
+        }),
+      );
+    });
+
+    it('cannot be entered by an outsider', async () => {
+      await assertFails(
+        setDoc(ref('outsider', 'pen'), { ...penaltyRound, seq: 2, updatedBy: 'outsider' }),
+      );
+    });
+  });
+
   it('can be edited by any member when the old values go into history', async () => {
     await assertSucceeds(setDoc(ref('admin'), edited('admin')));
   });

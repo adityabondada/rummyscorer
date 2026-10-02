@@ -9,7 +9,7 @@ describe('DEFAULT_SETTINGS', () => {
       dropPoints: 20,
       middleDropPoints: 40,
       maxDrops: 2,
-      dropsOnRejoin: { mode: 'carryOver' },
+      dropsOnRejoin: { mode: 'grant', count: 0 },
       maxRoundPenalty: 80,
       rejoinCutoff: null,
     });

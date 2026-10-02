@@ -1,17 +1,11 @@
 import { addDoc, collection } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  DEFAULT_SETTINGS,
-  RANKS,
-  validateSettings,
-  EngineError,
-  type GameSettings,
-} from '@rummy/engine';
+import { DEFAULT_SETTINGS, validateSettings, EngineError, type GameSettings } from '@rummy/engine';
 import { gamesPath, type GameDoc } from '@rummy/data';
 import { db } from '../firebase';
 import { pickablePlayers } from '../lib/names';
-import { drawForm } from '../lib/seatingForm';
+import { moveInOrder, seatOrderFor, tableOrder, toggleAll } from '../lib/newGame';
 import { Button, Card, ErrorText, Field, Page, cx } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 
@@ -33,7 +27,10 @@ const initialForm: SettingsForm = {
   dropPoints: String(DEFAULT_SETTINGS.dropPoints),
   middleDropPoints: String(DEFAULT_SETTINGS.middleDropPoints),
   maxDrops: String(DEFAULT_SETTINGS.maxDrops),
-  rejoinDrops: 'carryOver',
+  rejoinDrops:
+    DEFAULT_SETTINGS.dropsOnRejoin.mode === 'grant'
+      ? String(DEFAULT_SETTINGS.dropsOnRejoin.count)
+      : 'carryOver',
   maxRoundPenalty: String(DEFAULT_SETTINGS.maxRoundPenalty),
   rejoinCutoff: '',
 };
@@ -67,8 +64,6 @@ export function NewGameScreen() {
 
   const [picked, setPicked] = useState<string[]>([]);
   const [form, setForm] = useState<SettingsForm>(initialForm);
-  const [mode, setMode] = useState<'cards' | 'manual'>('cards');
-  const [draws, setDraws] = useState<Record<string, string[]>>({});
   const [manual, setManual] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -84,40 +79,22 @@ export function NewGameScreen() {
   const toggle = (id: string) =>
     setPicked((cur) => (cur.includes(id) ? cur.filter((p) => p !== id) : [...cur, id]));
 
-  // Card draws for the people picked. Someone in a tie gets another box to enter their redraw.
-  const { result: seating, view: drawView } = drawForm(picked, draws);
-  const setDraw = (id: string, index: number, value: string) =>
-    setDraws((cur) => {
-      const slots = [...(cur[id] ?? [''])];
-      while (slots.length <= index) slots.push('');
-      slots[index] = value;
-      return { ...cur, [id]: slots };
-    });
+  const allIds = candidates.map((p) => p.id);
+  const allPicked = allIds.length > 0 && allIds.every((id) => picked.includes(id));
 
-  const manualOrder = [
-    ...manual.filter((id) => picked.includes(id)),
-    ...picked.filter((id) => !manual.includes(id)),
-  ];
-  const move = (id: string, delta: number) => {
-    const next = [...manualOrder];
-    const from = next.indexOf(id);
-    const to = from + delta;
-    if (to < 0 || to >= next.length) return;
-    [next[from], next[to]] = [next[to]!, next[from]!];
-    setManual(next);
-  };
-
-  const seatOrder = mode === 'manual' ? manualOrder : seating?.resolved ? seating.seatOrder : null;
-  const canStart = picked.length >= 2 && !!seatOrder && !!settingsResult.settings && !busy;
+  // The list on screen is the order cards are dealt in; the game's seat order starts at the dealer.
+  const seatOrder = seatOrderFor(picked, manual);
+  const dealer = tableOrder(seatOrder)[0];
+  const canStart = picked.length >= 2 && !!settingsResult.settings && !busy;
 
   const start = async () => {
-    if (!seatOrder || !settingsResult.settings) return;
+    if (picked.length < 2 || !settingsResult.settings) return;
     setBusy(true);
     setError('');
     try {
       const game: GameDoc = {
         settings: settingsResult.settings,
-        seatOrder,
+        seatOrder: tableOrder(seatOrder),
         status: 'inProgress',
         createdBy: uid,
         createdAt: Date.now(),
@@ -146,7 +123,18 @@ export function NewGameScreen() {
   return (
     <Page title="New game" back={{ to: `/l/${leagueId}`, label: 'Games' }}>
       <Card className="space-y-3">
-        <h2 className="font-semibold">1. Who's playing?</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold">1. Who's playing?</h2>
+          {candidates.length > 1 && (
+            <Button
+              variant="ghost"
+              small
+              onClick={() => setPicked((cur) => toggleAll(cur, allIds))}
+            >
+              {allPicked ? 'Clear all' : 'Select all'}
+            </Button>
+          )}
+        </div>
         {candidates.length < 2 && (
           <p className="text-sm text-slate-600">
             Add at least two players on the Players tab first.
@@ -204,70 +192,26 @@ export function NewGameScreen() {
       </Card>
 
       <Card className="space-y-3">
-        <h2 className="font-semibold">3. Seating</h2>
-        <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-          {(['cards', 'manual'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={cx(
-                'flex-1 rounded-md px-3 py-1.5 text-sm font-medium',
-                mode === m ? 'bg-white shadow-sm' : 'text-slate-600',
-              )}
-              onClick={() => setMode(m)}
-            >
-              {m === 'cards' ? 'Draw cards' : 'Set the order'}
-            </button>
-          ))}
-        </div>
+        <h2 className="font-semibold">3. Seating order</h2>
+        <p className="text-sm text-slate-600">
+          Put players in the order cards are dealt, highest card first. The player at the bottom,
+          with the lowest card, deals round 1.
+        </p>
 
         {picked.length < 2 ? (
           <p className="text-sm text-slate-600">Pick at least two players first.</p>
-        ) : mode === 'cards' ? (
-          <>
-            <p className="text-sm text-slate-600">
-              Each player draws a card. The lowest deals first, and the highest is dealt first.
-            </p>
-            <ul className="space-y-2">
-              {picked.map((id) => (
-                <li key={id} className="flex flex-wrap items-center gap-2">
-                  <span className="w-28 truncate font-medium">{nameOf(id)}</span>
-                  {(drawView[id]?.slots ?? ['']).map((slot, i) => (
-                    <select
-                      key={i}
-                      aria-label={`${nameOf(id)} ${i === 0 ? 'card' : `redraw ${i}`}`}
-                      className="rounded-lg border border-slate-300 bg-white px-2 py-2"
-                      value={slot}
-                      onChange={(e) => setDraw(id, i, e.target.value)}
-                    >
-                      <option value="">{i === 0 ? 'Card' : 'Redraw'}</option>
-                      {RANKS.map((r) => (
-                        <option key={r} value={r}>
-                          {r}
-                        </option>
-                      ))}
-                    </select>
-                  ))}
-                  {drawView[id]?.status === 'redraw' && (
-                    <span className="text-xs text-amber-700">Tied: draw again</span>
-                  )}
-                  {drawView[id]?.status === 'waiting' && (
-                    <span className="text-xs text-slate-500">Waiting for the others to redraw</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </>
         ) : (
           <ol className="space-y-2">
-            {manualOrder.map((id, i) => (
+            {seatOrder.map((id, i) => (
               <li
                 key={id}
                 className="flex items-center justify-between rounded-lg px-3 py-2 ring-1 ring-slate-200"
               >
                 <span>
                   {i + 1}. {nameOf(id)}{' '}
-                  {i === 0 && <span className="text-xs text-slate-500">(deals first)</span>}
+                  {i === seatOrder.length - 1 && seatOrder.length > 1 && (
+                    <span className="text-xs text-slate-500">(deals first)</span>
+                  )}
                 </span>
                 <span className="flex gap-1">
                   <Button
@@ -275,7 +219,7 @@ export function NewGameScreen() {
                     small
                     aria-label={`Move ${nameOf(id)} up`}
                     disabled={i === 0}
-                    onClick={() => move(id, -1)}
+                    onClick={() => setManual(moveInOrder(seatOrder, id, -1))}
                   >
                     ↑
                   </Button>
@@ -283,8 +227,8 @@ export function NewGameScreen() {
                     variant="secondary"
                     small
                     aria-label={`Move ${nameOf(id)} down`}
-                    disabled={i === manualOrder.length - 1}
-                    onClick={() => move(id, 1)}
+                    disabled={i === seatOrder.length - 1}
+                    onClick={() => setManual(moveInOrder(seatOrder, id, 1))}
                   >
                     ↓
                   </Button>
@@ -294,10 +238,11 @@ export function NewGameScreen() {
           </ol>
         )}
 
-        {seatOrder && (
+        {picked.length >= 2 && (
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm" data-testid="seat-order">
-            Table order: {seatOrder.map(nameOf).join(' → ')}.{' '}
-            <strong>{nameOf(seatOrder[0]!)}</strong> deals round 1.
+            <strong>{nameOf(dealer!)}</strong> deals round 1 and{' '}
+            <strong>{nameOf(seatOrder[0]!)}</strong> gets the first card. After that the deal moves
+            down the list: {seatOrder.map(nameOf).join(' → ')}.
           </p>
         )}
       </Card>

@@ -17,6 +17,7 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 - A user can belong to several leagues and switch between them.
 - **Joining:** the admin shares an invite link or short code. Opening it and signing in with Google adds the user as a member.
 - **Admin role is minimal:** regenerate the invite (invalidating old links) and remove members. Nothing else is admin-only.
+- **One Players tab for people:** the league has three tabs, Games, Stats and Players. The Players tab lists everyone, members and guests together, with badges (Admin, You, Member, Former member, Guest, Retired). Add player and, for the admin, Invite (link, code, copy, new invite) are buttons at the top that open a popup. Each row has a "…" menu with Rename, Retire or Bring back and, for the admin on another member, Remove from league. A guest row also has Link to a member. Removing a member takes away their access and retires their profile; their games and stats stay, and they show as a former member.
 - **Members** can start and delete games, log and edit rounds, scrap rounds, mark payments as paid, add guest players, and link or unlink guest profiles.
 - Firestore security rules ensure only league members can read or write that league's data.
 

@@ -52,13 +52,13 @@ export function LeaguesScreen() {
         <Link
           to="/profile"
           aria-label="Profile"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+          title="Profile"
+          className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
             <circle cx="12" cy="8" r="4.2" />
             <path d="M3.5 21c0-4.6 3.8-7.5 8.5-7.5s8.5 2.9 8.5 7.5z" />
           </svg>
-          Profile
         </Link>
       }
     >

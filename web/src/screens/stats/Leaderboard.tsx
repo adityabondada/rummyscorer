@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { percent, type PlayerStats } from '../../lib/stats';
+import { percent, streakHighlights, type PlayerStats } from '../../lib/stats';
 import { Card, cx, money } from '../../ui';
 
 interface Column {
@@ -14,7 +14,7 @@ interface Column {
 
 // Net comes first: it is the default sort and the number people look for, so on a phone it must not
 // scroll out of sight.
-const leaderboardColumns: Column[] = [
+const winningColumns: Column[] = [
   {
     key: 'net',
     label: 'Net',
@@ -22,28 +22,30 @@ const leaderboardColumns: Column[] = [
     value: (p) => p.net,
     cell: (p) => money(p.net),
   },
-  { key: 'games', label: 'Games', value: (p) => p.games, cell: (p) => String(p.games) },
   {
     key: 'wins',
-    label: 'Wins',
-    title: 'Games won outright, taking the whole pot',
-    value: (p) => p.outrightWins,
-    cell: (p) => String(p.outrightWins),
+    label: 'Games won',
+    title: 'Games won, including ones shared in a split',
+    value: (p) => p.wins,
+    cell: (p) => (p.sharedWins > 0 ? `${p.wins} (${p.sharedWins} shared)` : String(p.wins)),
   },
   {
-    key: 'shared',
-    label: 'Shared',
-    title: 'Games won as part of a split',
-    value: (p) => p.sharedWins,
-    cell: (p) => String(p.sharedWins),
+    key: 'roundsWon',
+    label: 'Rounds won',
+    value: (p) => p.roundsWon,
+    cell: (p) => (p.roundsWithData > 0 ? String(p.roundsWon) : '–'),
   },
   {
-    key: 'rate',
-    label: 'Win rate',
-    title: 'Wins, including shared, as a share of games played',
-    value: (p) => p.winRate,
-    cell: (p) => percent(p.winRate),
+    key: 'roundRate',
+    label: 'Round win %',
+    title: 'Rounds won as a share of rounds played',
+    value: (p) => p.roundWinRate,
+    cell: (p) => (p.roundsWithData > 0 ? percent(p.roundWinRate) : '–'),
   },
+];
+
+const otherColumns: Column[] = [
+  { key: 'games', label: 'Games', value: (p) => p.games, cell: (p) => String(p.games) },
   {
     key: 'finish',
     label: 'Avg finish',
@@ -52,20 +54,19 @@ const leaderboardColumns: Column[] = [
     ascending: true,
     cell: (p) => p.avgPosition.toFixed(1),
   },
-];
-
-const gameStatColumns: Column[] = [
   {
-    key: 'rounds',
-    label: 'Rounds survived',
-    value: (p) => p.roundsPlayed,
-    cell: (p) => String(p.roundsPlayed),
+    key: 'streak',
+    label: 'Best streak',
+    title: 'Most games won in a row, counting only the games they played',
+    value: (p) => p.bestStreak,
+    cell: (p) => String(p.bestStreak),
   },
   {
-    key: 'perGame',
-    label: 'Per game',
-    value: (p) => p.roundsPlayed / p.games,
-    cell: (p) => (p.roundsPlayed / p.games).toFixed(1),
+    key: 'penalties',
+    label: 'Penalties',
+    title: 'Penalty rounds taken: a wrong show or another error',
+    value: (p) => p.penalties,
+    cell: (p) => String(p.penalties),
   },
   {
     key: 'drops',
@@ -155,6 +156,38 @@ function StatsTable({
   );
 }
 
+/** "Asha", "Asha and Bo", "Asha, Bo and Cy". */
+const nameList = (ids: string[], names: Record<string, string>) => {
+  const list = ids.map((id) => names[id] ?? '?');
+  return list.length < 2 ? list.join('') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`;
+};
+
+function StreakCard({ rows, names }: { rows: PlayerStats[]; names: Record<string, string> }) {
+  const { longest, now } = streakHighlights(rows);
+  if (!longest && !now) return null;
+  const games = (n: number) => `${n} games won in a row`;
+  return (
+    <Card className="space-y-1 text-sm">
+      <h2 className="font-semibold">Streaks</h2>
+      {longest && (
+        <p>
+          <span className="text-slate-500">Longest:</span>{' '}
+          <strong className="font-medium">{nameList(longest.ids, names)}</strong>,{' '}
+          {games(longest.length)}
+          {longest.ids.length > 1 && ' each'}
+        </p>
+      )}
+      {now && (
+        <p>
+          <span className="text-slate-500">On a streak now:</span>{' '}
+          <strong className="font-medium">{nameList(now.ids, names)}</strong>, {games(now.length)}
+          {now.ids.length > 1 && ' each'}
+        </p>
+      )}
+    </Card>
+  );
+}
+
 export function Leaderboard({
   rows,
   names,
@@ -166,17 +199,18 @@ export function Leaderboard({
     <>
       <StatsTable
         caption="Leaderboard"
-        columns={leaderboardColumns}
+        columns={winningColumns}
         rows={rows}
         names={names}
         initialSort="net"
       />
+      <StreakCard rows={rows} names={names} />
       <StatsTable
-        caption="Game stats"
-        columns={gameStatColumns}
+        caption="More stats"
+        columns={otherColumns}
         rows={rows}
         names={names}
-        initialSort="rounds"
+        initialSort="games"
       />
     </>
   );

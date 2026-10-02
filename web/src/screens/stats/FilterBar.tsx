@@ -1,7 +1,7 @@
 import { PRESETS, type CustomDates, type Preset } from '../../lib/stats';
 import { cx } from '../../ui';
 
-/** One row of time filters above the stats. Applies to the table and both charts. */
+/** One row of time filters above the stats. Applies to the tables, streaks and the chart. */
 export function FilterBar({
   preset,
   custom,

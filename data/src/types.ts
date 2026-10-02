@@ -41,6 +41,12 @@ export interface PlayerStatsDoc {
   dropsTaken: number;
   rejoins: number;
   buyIns: number;
+  /**
+   * Rounds won, and penalty rounds taken. Missing on summaries saved before they were tracked,
+   * until the game is recalculated.
+   */
+  roundsWon?: number;
+  penalties?: number;
 }
 
 /** Cached result of a finished game. Written by `onRoundWrite`; stats read only these. */

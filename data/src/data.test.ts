@@ -309,6 +309,54 @@ describe('replaying stored games', () => {
     expect(summary.players.C).toMatchObject({ net: -10, position: 3, roundsPlayed: 1 });
   });
 
+  it('counts rounds won and penalties for each player, under the merged id', () => {
+    const resolveId = (id: string) => (id === 'B' ? 'member' : id);
+    const withPenalty = [
+      newRoundDoc(round(1, 'A', { B: pts(10), C: pts(20) }), 'u1', 1),
+      newRoundDoc(penaltyRound(2, 'B', 40, { A: pts(0), C: pts(0) }), 'u1', 2),
+      newRoundDoc(round(3, 'A', { B: pts(45), C: pts(40) }), 'u1', 3),
+    ];
+    const state = replay(
+      gameInput(
+        game({ settings: { ...DEFAULT_SETTINGS, limit: 50, maxRoundPenalty: null } }),
+        withPenalty,
+      ),
+      { resolveId },
+    );
+    const summary = summaryFromState(state, 1)!;
+    expect(summary.players.A).toMatchObject({ roundsWon: 2, penalties: 0 });
+    expect(summary.players.member).toMatchObject({ roundsWon: 0, penalties: 1 });
+    expect(summary.players.C).toMatchObject({ roundsWon: 0, penalties: 0 });
+  });
+
+  it('reads summaries saved before rounds won were counted, leaving them unset', () => {
+    const old = { net: 2, position: 1, roundsPlayed: 3, dropsTaken: 0, rejoins: 0, buyIns: 1 };
+    const finished = game({
+      status: 'finished',
+      summary: {
+        outcome: 'outright',
+        winnerIds: ['A'],
+        pot: 30,
+        payouts: { A: 30 },
+        rounds: 3,
+        players: { A: old },
+        computedAt: 1,
+      },
+    });
+    const parsed = parseGame(finished);
+    expect(parsed.summary!.players.A).toEqual(old);
+    expect(parsed.summary!.players.A!.roundsWon).toBeUndefined();
+  });
+
+  it('rejects a rounds won that is not a number', () => {
+    const state = replay(gameInput(game(), rounds));
+    const stored = JSON.parse(
+      JSON.stringify(game({ status: 'finished', summary: summaryFromState(state, 1) })),
+    );
+    stored.summary.players.A.roundsWon = 'two';
+    expect(() => parseGame(stored)).toThrow('roundsWon');
+  });
+
   it('has no summary until the game is finished', () => {
     expect(summaryFromState(replay(gameInput(game(), [rounds[0]!])), 1)).toBeNull();
   });

@@ -1,10 +1,11 @@
 import { gamePath, roundsPath } from '@rummy/data';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { recomputeGame } from './recompute';
+import { recomputeGame, recomputeLeague } from './recompute';
 import {
   addGame,
   addGuest,
   addRound,
+  caught,
   clearDb,
   NOW,
   pts,
@@ -226,5 +227,56 @@ describe('recomputeGame with penalty rounds', () => {
     const game = await readGame(db, leagueId, gameId);
     expect(game.status).toBe('inProgress');
     expect(game.summaryError).toContain('not playing');
+  });
+});
+
+describe('recomputeLeague', () => {
+  /** Takes the rounds-won numbers out of a finished game's summary, as old summaries lack them. */
+  async function stripRoundStats(leagueId: string, gameId: string) {
+    const ref = db.doc(gamePath(leagueId, gameId));
+    const summary = (await ref.get()).data()!.summary;
+    for (const p of Object.values<Record<string, unknown>>(summary.players)) {
+      delete p.roundsWon;
+      delete p.penalties;
+    }
+    await ref.update({ summary });
+  }
+
+  it('adds rounds won to the summaries of games finished before they were counted', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
+    const [a, b, c] = [profiles.admin!, profiles.u2!, profiles.u3!];
+    const first = await finishedGame(leagueId, [a, b, c]);
+    const second = await finishedGame(leagueId, [a, b, c]);
+    await recomputeGame(db, leagueId, first, NOW);
+    await recomputeGame(db, leagueId, second, NOW);
+    await stripRoundStats(leagueId, first);
+    await stripRoundStats(leagueId, second);
+    expect((await readGame(db, leagueId, first)).summary.players[a].roundsWon).toBeUndefined();
+
+    expect(await recomputeLeague(db, 'admin', { leagueId }, NOW)).toEqual({ games: 2, updated: 2 });
+    for (const gameId of [first, second]) {
+      const players = (await readGame(db, leagueId, gameId)).summary.players;
+      expect(players[a]).toMatchObject({ roundsWon: 2, penalties: 0 });
+      expect(players[b]).toMatchObject({ roundsWon: 0 });
+    }
+  });
+
+  it('leaves games that are already right alone, so running it again changes nothing', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
+    const gameId = await finishedGame(leagueId, [profiles.admin!, profiles.u2!, profiles.u3!]);
+    await recomputeGame(db, leagueId, gameId, NOW);
+    expect(await recomputeLeague(db, 'admin', { leagueId }, NOW)).toEqual({ games: 1, updated: 0 });
+  });
+
+  it('skips games still being played', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2']);
+    await addGame(db, leagueId, [profiles.admin!, profiles.u2!]);
+    expect(await recomputeLeague(db, 'admin', { leagueId }, NOW)).toEqual({ games: 0, updated: 0 });
+  });
+
+  it('is for members only', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    const error = await caught(() => recomputeLeague(db, 'stranger', { leagueId }, NOW));
+    expect(error).toMatchObject({ code: 'permission-denied' });
   });
 });

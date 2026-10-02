@@ -203,3 +203,51 @@ describe('penalty rounds and merged profiles', () => {
     expect(s.rounds[0]!.penalty!.playerId).toBe('A');
   });
 });
+
+describe('rounds won and penalties taken', () => {
+  const rounds: Round[] = [
+    round(1, 'A', { B: 10, C: 20, D: 5 }),
+    round(2, 'A', { B: 10, C: 20, D: 5 }),
+    penaltyRound(3, 'B', 80, { A: 'played', C: 'played', D: drop }, 'wrongShow'),
+    round(4, 'C', { A: 10, B: 5, D: 15 }),
+    penaltyRound(5, 'C', 40, { A: 'played', B: 'played', D: 'played' }, 'error'),
+  ];
+
+  it('counts the rounds each player won, and the penalty rounds they took', () => {
+    const s = game(rounds, { limit: 500 });
+    expect(s.players.A).toMatchObject({ roundsWon: 2, penalties: 0 });
+    expect(s.players.B).toMatchObject({ roundsWon: 0, penalties: 1 });
+    expect(s.players.C).toMatchObject({ roundsWon: 1, penalties: 1 });
+    expect(s.players.D).toMatchObject({ roundsWon: 0, penalties: 0 });
+  });
+
+  it('gives a penalty round to nobody as a win', () => {
+    const s = game(rounds, { limit: 500 });
+    const won = Object.values(s.players).reduce((n, p) => n + p.roundsWon, 0);
+    expect(won).toBe(s.rounds.filter((r) => r.winnerId !== null).length);
+    expect(won).toBe(3);
+  });
+
+  it('leaves out scrapped rounds', () => {
+    const scrapped = scrapLatest(scrapLatest(rounds, { by: 'u', at: 1, reason: 'x' }), {
+      by: 'u',
+      at: 2,
+      reason: 'y',
+    });
+    const s = game(scrapped, { limit: 500 });
+    expect(s.players.C).toMatchObject({ roundsWon: 0, penalties: 0 });
+    expect(s.players.B).toMatchObject({ penalties: 1 });
+  });
+
+  it('keeps counting after a rejoin', () => {
+    const s = game(
+      [
+        round(1, 'A', { B: 60, C: 10, D: 10 }, [{ playerId: 'B', seatIndex: 1 }]),
+        round(2, 'B', { A: 5, C: 5, D: 5 }),
+      ],
+      { limit: 59 },
+    );
+    expect(s.players.B).toMatchObject({ roundsWon: 1, rejoins: 1 });
+    expect(s.players.A).toMatchObject({ roundsWon: 1 });
+  });
+});

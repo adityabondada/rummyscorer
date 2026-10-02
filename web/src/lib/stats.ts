@@ -5,7 +5,7 @@ import type { GameRow } from './night';
  * Summaries already leave out scrapped rounds and use merged player ids.
  */
 
-export type Preset = 'all' | 'month' | '3months' | 'year' | 'custom';
+export type Preset = 'all' | 'month' | 'year' | 'custom';
 
 /** A span of time in milliseconds, both ends included. `null` means no limit on that side. */
 export interface Range {
@@ -22,7 +22,6 @@ export interface CustomDates {
 export const PRESETS: { id: Preset; label: string }[] = [
   { id: 'all', label: 'All time' },
   { id: 'month', label: 'This month' },
-  { id: '3months', label: 'Last 3 months' },
   { id: 'year', label: 'This year' },
   { id: 'custom', label: 'Custom' },
 ];
@@ -44,11 +43,6 @@ export function rangeFor(preset: Preset, now: number, custom?: CustomDates): Ran
       return { from: null, to: null };
     case 'month':
       return { from: new Date(today.getFullYear(), today.getMonth(), 1).getTime(), to: null };
-    case '3months':
-      return {
-        from: startOfDay(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())),
-        to: null,
-      };
     case 'year':
       return { from: new Date(today.getFullYear(), 0, 1).getTime(), to: null };
     case 'custom': {
@@ -98,6 +92,18 @@ export interface PlayerStats {
   roundsPlayed: number;
   dropsTaken: number;
   rejoins: number;
+  /** Rounds won. Only counts games whose summary has it (older ones are filled in on request). */
+  roundsWon: number;
+  /** Rounds played in those same games, so the win rate compares like with like. */
+  roundsWithData: number;
+  /** Rounds won as a share of rounds played, from 0 to 1. */
+  roundWinRate: number;
+  /** Penalty rounds taken: a wrong show or another error. */
+  penalties: number;
+  /** The most games won in a row, counting only the games they played. */
+  bestStreak: number;
+  /** Games won in a row up to the latest game they played. */
+  currentStreak: number;
 }
 
 /** Everyone who played in these games, best net money first. */
@@ -119,6 +125,12 @@ export function leaderboard(games: GameRow[]): PlayerStats[] {
         roundsPlayed: 0,
         dropsTaken: 0,
         rejoins: 0,
+        roundsWon: 0,
+        roundsWithData: 0,
+        roundWinRate: 0,
+        penalties: 0,
+        bestStreak: 0,
+        currentStreak: 0,
         positionSum: 0,
       };
       row.games += 1;
@@ -127,6 +139,11 @@ export function leaderboard(games: GameRow[]): PlayerStats[] {
       row.roundsPlayed += p.roundsPlayed;
       row.dropsTaken += p.dropsTaken;
       row.rejoins += p.rejoins;
+      if (p.roundsWon !== undefined) {
+        row.roundsWon += p.roundsWon;
+        row.roundsWithData += p.roundsPlayed;
+      }
+      row.penalties += p.penalties ?? 0;
       if (summary.winnerIds.includes(id)) {
         if (summary.outcome === 'split') row.sharedWins += 1;
         else row.outrightWins += 1;
@@ -134,15 +151,72 @@ export function leaderboard(games: GameRow[]): PlayerStats[] {
       totals.set(id, row);
     }
   }
+  const run = streaks(games);
   return [...totals.values()]
     .map(({ positionSum, ...row }) => ({
       ...row,
       wins: row.outrightWins + row.sharedWins,
       winRate: (row.outrightWins + row.sharedWins) / row.games,
       avgPosition: positionSum / row.games,
+      roundWinRate: row.roundsWithData > 0 ? row.roundsWon / row.roundsWithData : 0,
+      bestStreak: run.best[row.id] ?? 0,
+      currentStreak: run.current[row.id] ?? 0,
     }))
     .sort((a, b) => b.net - a.net || b.wins - a.wins || a.id.localeCompare(b.id));
 }
+
+export interface Streaks {
+  /** Each player's longest run of games won, and the run they are on now. */
+  best: Record<string, number>;
+  current: Record<string, number>;
+}
+
+/**
+ * Games won in a row. A run only counts the games a player was in: a game they sat out neither
+ * adds to it nor breaks it, as not everyone plays every week. A shared win counts as a win.
+ * `games` must be oldest first, as `filterGames` returns them.
+ */
+export function streaks(games: GameRow[]): Streaks {
+  const best: Record<string, number> = {};
+  const current: Record<string, number> = {};
+  for (const { doc } of games) {
+    const summary = doc.summary;
+    if (!summary) continue;
+    for (const id of Object.keys(summary.players)) {
+      current[id] = summary.winnerIds.includes(id) ? (current[id] ?? 0) + 1 : 0;
+      best[id] = Math.max(best[id] ?? 0, current[id]!);
+    }
+  }
+  return { best, current };
+}
+
+/** A run worth showing: the longest, and who has it (ties share it). */
+export interface Run {
+  ids: string[];
+  length: number;
+}
+
+/** Streaks that are worth a mention (at least two in a row): the record, and who is on one now. */
+export function streakHighlights(rows: PlayerStats[]): { longest: Run | null; now: Run | null } {
+  const top = (value: (p: PlayerStats) => number): Run | null => {
+    const length = Math.max(0, ...rows.map(value));
+    if (length < 2) return null;
+    const ids = rows
+      .filter((p) => value(p) === length)
+      .map((p) => p.id)
+      .sort();
+    return { ids, length };
+  };
+  return { longest: top((p) => p.bestStreak), now: top((p) => p.currentStreak) };
+}
+
+/** True when any game in the list has no rounds-won numbers yet. */
+export const missingRoundStats = (games: GameRow[]): boolean =>
+  games.some(
+    ({ doc }) =>
+      doc.summary !== null &&
+      Object.values(doc.summary.players).some((p) => p.roundsWon === undefined),
+  );
 
 export interface TrendPoint {
   /** 1 for the first game in the range. */
@@ -153,12 +227,15 @@ export interface TrendPoint {
   net: Record<string, number>;
   /** Running count of games won (outright or shared). */
   wins: Record<string, number>;
+  /** Running count of rounds won. */
+  roundWins: Record<string, number>;
 }
 
 /** Running net money and wins after each game, oldest first, for everyone who played. */
 export function trends(games: GameRow[]): { ids: string[]; points: TrendPoint[] } {
   const net: Record<string, number> = {};
   const wins: Record<string, number> = {};
+  const roundWins: Record<string, number> = {};
   const points: TrendPoint[] = [];
 
   games.forEach(({ id, doc }, index) => {
@@ -167,6 +244,7 @@ export function trends(games: GameRow[]): { ids: string[]; points: TrendPoint[] 
     for (const [pid, p] of Object.entries(summary.players)) {
       net[pid] = (net[pid] ?? 0) + p.net;
       wins[pid] = (wins[pid] ?? 0) + (summary.winnerIds.includes(pid) ? 1 : 0);
+      roundWins[pid] = (roundWins[pid] ?? 0) + (p.roundsWon ?? 0);
     }
     points.push({
       game: index + 1,
@@ -174,6 +252,7 @@ export function trends(games: GameRow[]): { ids: string[]; points: TrendPoint[] 
       at: doc.createdAt,
       net: { ...net },
       wins: { ...wins },
+      roundWins: { ...roundWins },
     });
   });
   return { ids: Object.keys(net), points };

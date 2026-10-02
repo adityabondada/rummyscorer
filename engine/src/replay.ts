@@ -60,6 +60,8 @@ export function initialState(settings: GameSettings, seatOrder: PlayerId[]): Gam
       rejoins: 0,
       roundsPlayed: 0,
       dropsTaken: 0,
+      roundsWon: 0,
+      penalties: 0,
       eliminated: null,
     };
   }
@@ -253,6 +255,8 @@ export function applyRound(prev: GameState, round: Round): GameState {
     record.points[id] = points;
     player.total += points;
     player.roundsPlayed += 1;
+    if (id === round.winnerId) player.roundsWon += 1;
+    if (penalty && id === penalty.playerId) player.penalties += 1;
     if (player.total > state.settings.limit) {
       player.active = false;
       player.eliminated = { afterSeq: round.seq, total: player.total };

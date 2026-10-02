@@ -200,6 +200,9 @@ function parseStats(value: unknown, what: string): PlayerStatsDoc {
     dropsTaken: num(d.dropsTaken, 'dropsTaken'),
     rejoins: num(d.rejoins, 'rejoins'),
     buyIns: num(d.buyIns, 'buyIns'),
+    // Missing on summaries saved before these were tracked.
+    ...(d.roundsWon === undefined ? {} : { roundsWon: num(d.roundsWon, 'roundsWon') }),
+    ...(d.penalties === undefined ? {} : { penalties: num(d.penalties, 'penalties') }),
   };
 }
 

@@ -123,12 +123,17 @@ Rounds can be scrapped only from the end of the game, like an undo stack.
 
 ## Stats and trends
 
-All-time by default, with a time filter on every view: this month, last 3 months, this year, or a custom range. No resetting seasons.
+All-time by default, with a time filter on every view: this month, this year, or a custom range. No resetting seasons.
 
-- **Leaderboard:** games played, outright wins, shared wins, win rate, average finishing position, net money.
-- **Game stats:** rounds survived, drops used, rejoins.
-- **Trends:** net money over time per player, and games won over time.
+Everything is on the one screen, with nothing to open per player:
+
+- **Leaderboard:** net money, games won (shared wins in brackets, for example "4 (1 shared)"), rounds won, and round win % (rounds won as a share of rounds played).
+- **Streaks:** the longest run of games won in a row, and who is on a run now (two or more). A run only counts the games a player was in: a game they sat out neither adds to it nor breaks it. A shared win counts as a win. Players tied on a run share it. Hidden when nobody has won two in a row.
+- **More stats:** games played, average finishing position, best streak, penalties taken (penalty rounds, see above), drops used and rejoins.
+- **One chart** with a switch between net money, games won and rounds won, game by game.
+- Penalty rounds count as rounds played by everyone and as a round won by nobody.
 - Scrapped rounds are excluded from all stats.
+- Games finished before rounds won were tracked have no round numbers. The stats tab asks for those games to be recalculated once (`recomputeLeague`, below), and shows a dash instead of zero until they are.
 
 How the numbers are worked out (all from cached game summaries, never from rounds):
 
@@ -167,6 +172,7 @@ How the numbers are worked out (all from cached game summaries, never from round
 - `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
 - `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
+- `recomputeLeague` (callable): any member can ask for every finished game in the league to be recalculated, which fills in numbers added to summaries later (such as rounds won). It leaves games that are already right alone, so it is safe to repeat.
 - `deleteGame` (callable): any member can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
 
 Everything else (round entry, scrapping, live game view) runs client-side.
@@ -175,7 +181,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 
 - `leagues/{leagueId}` — name, adminUid, inviteCode, memberUids, createdAt.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
-- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
+- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId (null in a penalty round), penalty (nullable: player, points, reason; absent on rounds saved before penalty rounds existed), entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.

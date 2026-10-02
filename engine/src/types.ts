@@ -82,6 +82,10 @@ export interface PlayerState {
   roundsPlayed: number;
   /** Drops and middle drops taken over the whole game. */
   dropsTaken: number;
+  /** Rounds won. A penalty round has no winner, so it adds nothing here. */
+  roundsWon: number;
+  /** Penalty rounds taken (a wrong show or another error). */
+  penalties: number;
   /** Set while the player is out. */
   eliminated: { afterSeq: number; total: number } | null;
 }

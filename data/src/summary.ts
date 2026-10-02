@@ -19,6 +19,8 @@ export function summaryFromState(state: GameState, computedAt: number): GameSumm
       dropsTaken: p.dropsTaken,
       rejoins: p.rejoins,
       buyIns: p.buyIns,
+      roundsWon: p.roundsWon,
+      penalties: p.penalties,
     };
   }
   return {

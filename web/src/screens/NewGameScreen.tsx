@@ -5,8 +5,9 @@ import { DEFAULT_SETTINGS, validateSettings, EngineError, type GameSettings } fr
 import { gamesPath, type GameDoc } from '@rummy/data';
 import { db } from '../firebase';
 import { pickablePlayers } from '../lib/names';
-import { moreRulesSummary, moveInOrder, tableOrder, toggleAll, togglePlayer } from '../lib/newGame';
+import { moreRulesSummary, tableOrder, toggleAll, togglePlayer } from '../lib/newGame';
 import { Button, Card, ErrorText, Field, Page, cx } from '../ui';
+import { DraggableLineUp } from './DraggableLineUp';
 import { useLeagueContext } from './LeagueLayout';
 
 /** The settings as text, so a field can be empty while someone is typing. */
@@ -142,52 +143,15 @@ export function NewGameScreen() {
         {lineUp.length > 0 && (
           <>
             <p className="text-sm text-slate-600">
-              Put them in the order the cards are dealt, highest card first. The player at the
-              bottom, with the lowest card, deals round 1.
+              Drag the handle to put them in the order the cards are dealt, highest card first. The
+              player at the bottom, with the lowest card, deals round 1.
             </p>
-            <ol className="space-y-2" aria-label="Playing, in dealing order">
-              {lineUp.map((id, i) => (
-                <li
-                  key={id}
-                  className="flex items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-2 ring-1 ring-slate-900"
-                >
-                  <span className="min-w-0 truncate">
-                    {i + 1}. <span className="font-medium">{nameOf(id)}</span>{' '}
-                    {i === lineUp.length - 1 && lineUp.length > 1 && (
-                      <span className="text-xs text-slate-500">(deals first)</span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 gap-1">
-                    <Button
-                      variant="secondary"
-                      small
-                      aria-label={`Move ${nameOf(id)} up`}
-                      disabled={i === 0}
-                      onClick={() => setLineUp(moveInOrder(lineUp, id, -1))}
-                    >
-                      ↑
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      small
-                      aria-label={`Move ${nameOf(id)} down`}
-                      disabled={i === lineUp.length - 1}
-                      onClick={() => setLineUp(moveInOrder(lineUp, id, 1))}
-                    >
-                      ↓
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      small
-                      aria-label={`Remove ${nameOf(id)}`}
-                      onClick={() => setLineUp(togglePlayer(lineUp, id))}
-                    >
-                      ×
-                    </Button>
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <DraggableLineUp
+              order={lineUp}
+              nameOf={nameOf}
+              onChange={setLineUp}
+              onRemove={(id) => setLineUp(togglePlayer(lineUp, id))}
+            />
           </>
         )}
 

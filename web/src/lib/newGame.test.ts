@@ -1,6 +1,15 @@
 import { DEFAULT_SETTINGS, type GameSettings } from '@rummy/engine';
 import { describe, expect, it } from 'vitest';
-import { moreRulesSummary, moveInOrder, tableOrder, toggleAll, togglePlayer } from './newGame';
+import {
+  dragTarget,
+  moreRulesSummary,
+  moveInOrder,
+  moveToIndex,
+  rowShift,
+  tableOrder,
+  toggleAll,
+  togglePlayer,
+} from './newGame';
 
 describe('toggleAll', () => {
   const all = ['a', 'b', 'c'];
@@ -99,6 +108,54 @@ describe('moveInOrder', () => {
     expect(moveInOrder(order, 'z', 1)).toBe(order);
     moveInOrder(order, 'b', 1);
     expect(order).toEqual(['a', 'b', 'c']);
+  });
+});
+
+describe('moveToIndex', () => {
+  const order = ['a', 'b', 'c', 'd'];
+
+  it('drops a player into a place, pushing the others along', () => {
+    expect(moveToIndex(order, 'a', 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveToIndex(order, 'd', 0)).toEqual(['d', 'a', 'b', 'c']);
+    expect(moveToIndex(order, 'b', 3)).toEqual(['a', 'c', 'd', 'b']);
+  });
+
+  it('keeps the place within the list', () => {
+    expect(moveToIndex(order, 'a', 99)).toEqual(['b', 'c', 'd', 'a']);
+    expect(moveToIndex(order, 'd', -5)).toEqual(['d', 'a', 'b', 'c']);
+  });
+
+  it('leaves the order alone when nothing moves or the player is not in it', () => {
+    expect(moveToIndex(order, 'b', 1)).toBe(order);
+    expect(moveToIndex(order, 'z', 1)).toBe(order);
+  });
+});
+
+describe('dragTarget', () => {
+  it('rounds to the nearest row and stays inside the list', () => {
+    expect(dragTarget(1, 0, 50, 4)).toBe(1);
+    expect(dragTarget(1, 24, 50, 4)).toBe(1);
+    expect(dragTarget(1, 26, 50, 4)).toBe(2);
+    expect(dragTarget(1, -80, 50, 4)).toBe(0);
+    expect(dragTarget(1, 500, 50, 4)).toBe(3);
+  });
+
+  it('stays put when the row height is unknown', () => {
+    expect(dragTarget(2, 300, 0, 4)).toBe(2);
+  });
+});
+
+describe('rowShift', () => {
+  it('slides rows up when the dragged row passes them going down', () => {
+    expect([0, 1, 2, 3].map((i) => rowShift(i, 0, 2))).toEqual([0, -1, -1, 0]);
+  });
+
+  it('slides rows down when the dragged row passes them going up', () => {
+    expect([0, 1, 2, 3].map((i) => rowShift(i, 3, 1))).toEqual([0, 1, 1, 0]);
+  });
+
+  it('moves nothing when the row has not changed place', () => {
+    expect([0, 1, 2].map((i) => rowShift(i, 1, 1))).toEqual([0, 0, 0]);
   });
 });
 

@@ -192,3 +192,67 @@ describe('triggers', () => {
     expect((await game(leagueId, gameId)).summary.computedAt).toBe(stamp);
   });
 });
+
+describe('deleteGameFn', () => {
+  async function leagueWithGame() {
+    const created = await call(
+      'createLeagueFn',
+      { name: 'Delete me', displayName: 'Admin' },
+      admin,
+    );
+    const { leagueId, inviteCode, playerId: a } = created.body.result;
+    const joined = await call('joinLeagueFn', { code: inviteCode, displayName: 'Ravi' }, ravi);
+    const b = joined.body.result.playerId;
+    const gameId = await addGame(db, leagueId, [a, b], { settings: smallSettings() });
+    await addRound(db, leagueId, gameId, { seq: 1, winnerId: a, entries: { [b]: pts(10) } });
+    await addRound(db, leagueId, gameId, { seq: 2, winnerId: a, entries: { [b]: pts(60) } });
+    await until(
+      () => game(leagueId, gameId),
+      (g) => g.status === 'finished',
+    );
+    return { leagueId, gameId };
+  }
+  const exists = async (leagueId: string, gameId: string) =>
+    (await db.doc(gamePath(leagueId, gameId)).get()).exists;
+
+  it('refuses a caller who is not signed in', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    const res = await call('deleteGameFn', { leagueId, gameId });
+    expect(res.body.error?.status).toBe('UNAUTHENTICATED');
+    expect(await exists(leagueId, gameId)).toBe(true);
+  });
+
+  it('refuses someone who is not in the league, and leaves the game alone', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    const outsider = await signUp('outsider@example.com', 'Outsider');
+    const res = await call('deleteGameFn', { leagueId, gameId }, outsider);
+    expect(res.body.error?.status).toBe('PERMISSION_DENIED');
+    expect(await exists(leagueId, gameId)).toBe(true);
+  });
+
+  it('deletes a finished game and all its rounds for a member, and says so in the log', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    expect((await db.collection(roundsPath(leagueId, gameId)).get()).size).toBe(2);
+
+    const res = await call('deleteGameFn', { leagueId, gameId }, ravi);
+    expect(res.status).toBe(200);
+    expect(res.body.result).toEqual({ ok: true });
+    expect(await exists(leagueId, gameId)).toBe(false);
+    expect((await db.collection(roundsPath(leagueId, gameId)).get()).size).toBe(0);
+
+    const log = await db
+      .collection(`leagues/${leagueId}/log`)
+      .where('type', '==', 'gameDeleted')
+      .get();
+    expect(log.docs.map((d) => d.data())).toMatchObject([
+      { by: ravi.uid, details: { gameId, rounds: 2, finished: true } },
+    ]);
+  });
+
+  it('says the game is not found when it is already gone', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    await call('deleteGameFn', { leagueId, gameId }, admin);
+    const again = await call('deleteGameFn', { leagueId, gameId }, admin);
+    expect(again.body.error?.status).toBe('NOT_FOUND');
+  });
+});

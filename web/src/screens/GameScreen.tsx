@@ -160,7 +160,21 @@ export function GameScreen() {
       title={state ? `Round ${state.rounds.length + 1}` : 'Game'}
       back={{ to: `/l/${leagueId}`, label: 'Games' }}
       actions={
-        finished ? <Badge tone="green">Finished</Badge> : <Badge tone="amber">In progress</Badge>
+        <div className="flex items-center gap-2">
+          {finished ? (
+            <Badge tone="green">Finished</Badge>
+          ) : (
+            <Badge tone="amber">In progress</Badge>
+          )}
+          <Button
+            variant="danger"
+            small
+            aria-label="Delete this game"
+            onClick={() => setDialog({ kind: 'delete' })}
+          >
+            Delete
+          </Button>
+        </div>
       }
     >
       {problem && (
@@ -278,12 +292,6 @@ export function GameScreen() {
         uidNames={uidNames}
         onEdit={state ? (row) => setDialog({ kind: 'edit', row }) : null}
       />
-
-      <div className="border-t border-slate-200 pt-4">
-        <Button variant="danger" small onClick={() => setDialog({ kind: 'delete' })}>
-          Delete this game
-        </Button>
-      </div>
 
       {dialog?.kind === 'round' && state && !finished && (
         <RoundEntry

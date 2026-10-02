@@ -1,1 +1,86 @@
 @import 'tailwindcss';
+
+/* The four suits light up one after another while something loads. */
+@keyframes suit-glow {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.suit-spinner-step {
+  display: inline-block;
+  animation: suit-glow 1.1s ease-in-out infinite;
+}
+
+/* A player who has just gone out gives their row a short shake. */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+.shake-once {
+  animation: shake 0.6s ease-in-out;
+}
+
+/* A score bar that is close to the limit pulses gently. */
+@keyframes danger-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.danger-pulse {
+  animation: danger-pulse 1s ease-in-out infinite;
+}
+
+/* The sign-in cards start stacked and spread out. The resting position is the spread one, so with
+   motion switched off they simply appear that way. */
+@keyframes fan-out {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+.fan-card {
+  transform: translate(var(--dx), var(--dy)) rotate(var(--fan));
+  transform-origin: 120px 84px;
+  animation: fan-out 0.9s cubic-bezier(0.2, 0.8, 0.3, 1.1) both;
+  animation-delay: var(--delay);
+}
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+.float-slow {
+  animation: float 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

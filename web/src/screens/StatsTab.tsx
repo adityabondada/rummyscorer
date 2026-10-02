@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGames } from '../hooks';
+import { EmptyState } from '../suits';
 import {
   colorSlots,
   filterGames,
@@ -10,7 +11,7 @@ import {
   type CustomDates,
   type Preset,
 } from '../lib/stats';
-import { Card, Loading } from '../ui';
+import { Loading } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 import { FilterBar } from './stats/FilterBar';
 import { Leaderboard } from './stats/Leaderboard';
@@ -49,15 +50,11 @@ export function StatsTab() {
       />
 
       {finishedAtAll === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            Stats appear once a game has finished. Scrapped rounds never count.
-          </p>
-        </Card>
+        <EmptyState title="Stats start with the first finished game">
+          Scrapped rounds never count.
+        </EmptyState>
       ) : inRange.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">No finished games in this time range.</p>
-        </Card>
+        <EmptyState title="No finished games in this time range">Try a wider range.</EmptyState>
       ) : (
         <>
           <p className="text-sm text-slate-600">

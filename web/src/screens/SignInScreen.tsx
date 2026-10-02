@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../auth';
+import { SignInArt } from '../SignInArt';
 import { Button, Card, ErrorText, Field } from '../ui';
 
 export function SignInScreen() {
@@ -21,7 +22,8 @@ export function SignInScreen() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-4">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-4 px-4 py-8">
+      <SignInArt />
       <div className="text-center">
         <h1 className="text-3xl font-semibold text-slate-900">Rummy Score Tracker</h1>
         <p className="mt-2 text-slate-600">

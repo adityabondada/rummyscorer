@@ -133,6 +133,7 @@ How the numbers are worked out (all from cached game summaries, never from round
 - **Conflicts:** last write wins. Each round shows who last edited it and when.
 - **Edit history:** every change to a round keeps its prior values.
 - **Mobile-first**, installable as a PWA; works on desktop too.
+- **Look and feel:** light theme. The four card suits are the recurring motif: a fan of aces on the sign-in screen, a suit on each league tab, a spinner where the suits light up in turn while loading, and a row of suits on empty screens. On the live game screen each player is a score bar racing toward the limit: green early, amber from 60% of the limit, red from 85%, pulsing from 90%, and greyed out with a short shake when they go out. All motion is short and switches off for people whose device asks to reduce motion. There are no photos or uploaded images, and player avatars were considered and left out for now.
 - **Efficient reads:** stats come from cached game summaries, not rereading every round.
 
 ## Technical design

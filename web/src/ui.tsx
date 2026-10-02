@@ -5,6 +5,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Link } from 'react-router-dom';
+import { SuitSpinner } from './suits';
 
 export const cx = (...parts: (string | false | null | undefined)[]) =>
   parts.filter(Boolean).join(' ');
@@ -75,7 +76,12 @@ export function ErrorText({ children }: { children: ReactNode }) {
 }
 
 export function Loading({ label = 'Loading…' }: { label?: string }) {
-  return <p className="py-8 text-center text-slate-500">{label}</p>;
+  return (
+    <div role="status" className="flex flex-col items-center gap-2 py-10 text-slate-500">
+      <SuitSpinner />
+      <p className="text-sm">{label}</p>
+    </div>
+  );
 }
 
 export function Badge({

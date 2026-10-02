@@ -1,7 +1,8 @@
 import type { GameState, RoundEntry, RoundRecord } from '@rummy/engine';
 import type { RoundSnapshot } from '@rummy/data';
 import { bySeq, type RoundRow } from '../../lib/game';
-import { Badge, Button, Card, cx } from '../../ui';
+import { EmptyState } from '../../suits';
+import { Badge, Button, cx } from '../../ui';
 
 const when = (ms: number) =>
   new Date(ms).toLocaleString(undefined, {
@@ -38,9 +39,7 @@ export function RoundList({ rows, state, names, uidNames, onEdit }: Props) {
 
   if (ordered.length === 0) {
     return (
-      <Card>
-        <p className="text-slate-600">No rounds yet.</p>
-      </Card>
+      <EmptyState title="No rounds yet">Enter the first round once the cards are dealt.</EmptyState>
     );
   }
 

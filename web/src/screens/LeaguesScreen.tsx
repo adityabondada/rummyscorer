@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createLeague, errorMessage, joinLeague } from '../api';
 import { useAuth, useUser } from '../auth';
 import { useMyLeagues } from '../hooks';
+import { EmptyState } from '../suits';
 import { Button, Card, ErrorText, Field, Loading, Page } from '../ui';
 
 export function LeaguesScreen() {
@@ -56,11 +57,9 @@ export function LeaguesScreen() {
       {leagues.loading ? (
         <Loading />
       ) : leagues.value.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            You're not in a league yet. Start one, or join with an invite code.
-          </p>
-        </Card>
+        <EmptyState title="Start your first league">
+          Create a league for your group, or join one with an invite code.
+        </EmptyState>
       ) : (
         <ul className="space-y-2">
           {leagues.value.map((l) => (

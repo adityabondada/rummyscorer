@@ -5,6 +5,7 @@ import { settledKey, settledPath, type SettledDoc } from '@rummy/data';
 import type { Transfer } from '@rummy/engine';
 import { db } from '../firebase';
 import { useGames, useSettled } from '../hooks';
+import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
 import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
@@ -103,11 +104,7 @@ export function GamesTab() {
       {games.loading ? (
         <Loading />
       ) : games.value.length === 0 ? (
-        <Card>
-          <p className="text-slate-600">
-            No games yet. Add your players, then start the first one.
-          </p>
-        </Card>
+        <EmptyState title="Deal the first game">Add your players, then start a game.</EmptyState>
       ) : (
         nights(games.value).map((night) => (
           <Card key={night.day} className="space-y-3">

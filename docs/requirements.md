@@ -47,6 +47,7 @@ Starting a game means picking players, setting the rules below, and ordering the
 | Rejoin cutoff         | Off     | Optional score; no rejoin once the highest active score passes it. Blank means rejoin is always allowed     |
 
 - The buy-in is the same for every player within a game.
+- On the new game screen, who is playing and the order they sit in are one section: players are tapped in, reordered with arrows, or removed, with Select all as a shortcut. The elimination limit and buy-in are always visible; the other rules sit under "More rules", which shows a one-line summary of them while closed.
 - The pot starts at buy-in × players and grows with each rejoin.
 
 ## Seating order and dealer rotation

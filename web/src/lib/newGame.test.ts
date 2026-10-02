@@ -1,6 +1,6 @@
-import { DEFAULT_SETTINGS } from '@rummy/engine';
+import { DEFAULT_SETTINGS, type GameSettings } from '@rummy/engine';
 import { describe, expect, it } from 'vitest';
-import { moveInOrder, seatOrderFor, tableOrder, toggleAll } from './newGame';
+import { moreRulesSummary, moveInOrder, tableOrder, toggleAll, togglePlayer } from './newGame';
 
 describe('toggleAll', () => {
   const all = ['a', 'b', 'c'];
@@ -26,20 +26,62 @@ describe('toggleAll', () => {
   });
 });
 
-describe('seatOrderFor', () => {
-  it('follows the order the players were picked in until someone is placed by hand', () => {
-    expect(seatOrderFor(['b', 'a', 'c'], [])).toEqual(['b', 'a', 'c']);
+describe('togglePlayer', () => {
+  it('adds a player to the end of the line-up', () => {
+    expect(togglePlayer(['a', 'b'], 'c')).toEqual(['a', 'b', 'c']);
+    expect(togglePlayer([], 'a')).toEqual(['a']);
   });
 
-  it('keeps hand placement, and puts newly picked players at the end', () => {
-    expect(seatOrderFor(['a', 'b', 'c', 'd'], ['c', 'a', 'b'])).toEqual(['c', 'a', 'b', 'd']);
+  it('takes a player out, keeping everyone else in order', () => {
+    expect(togglePlayer(['a', 'b', 'c'], 'b')).toEqual(['a', 'c']);
   });
 
-  it('drops anyone who was placed but is no longer picked', () => {
-    expect(seatOrderFor(['a', 'c'], ['c', 'b', 'a'])).toEqual(['c', 'a']);
+  it('does not change the list it is given', () => {
+    const order = ['a', 'b'];
+    togglePlayer(order, 'c');
+    togglePlayer(order, 'a');
+    expect(order).toEqual(['a', 'b']);
   });
 });
 
+describe('moreRulesSummary', () => {
+  const summary = (over: Partial<GameSettings> = {}) =>
+    moreRulesSummary({ ...DEFAULT_SETTINGS, ...over });
+
+  it('describes the standard rules in one line', () => {
+    expect(summary()).toBe(
+      'Drop 20, middle drop 40, up to 2 each · penalty cap 80 · rejoin with no drops · rejoin always open',
+    );
+  });
+
+  it('follows the settings', () => {
+    expect(summary({ dropPoints: 25, middleDropPoints: 50, maxDrops: 3 })).toContain(
+      'Drop 25, middle drop 50, up to 3 each',
+    );
+    expect(summary({ maxRoundPenalty: 60 })).toContain('penalty cap 60');
+    expect(summary({ rejoinCutoff: 150 })).toContain('rejoin closes past 150');
+  });
+
+  it('says so when there is no cap, no drops, or drops are carried over or granted', () => {
+    expect(summary({ maxRoundPenalty: null })).toContain('no penalty cap');
+    expect(summary({ maxDrops: 0, dropsOnRejoin: { mode: 'grant', count: 0 } })).toMatch(
+      /^No drops/,
+    );
+    expect(summary({ dropsOnRejoin: { mode: 'carryOver' } })).toContain(
+      'rejoin keeps the drops left',
+    );
+    expect(summary({ dropsOnRejoin: { mode: 'grant', count: 1 } })).toContain(
+      'rejoin with 1 drop ·',
+    );
+    expect(summary({ dropsOnRejoin: { mode: 'grant', count: 2 } })).toContain(
+      'rejoin with 2 drops ·',
+    );
+  });
+
+  it('leaves out the limit and buy-in, which are always on screen', () => {
+    expect(summary()).not.toMatch(/201|\$|buy/i);
+  });
+});
 describe('moveInOrder', () => {
   const order = ['a', 'b', 'c'];
 

@@ -1,0 +1,91 @@
+name: Deploy
+
+# Runs when something is merged to main. Hosting, rules and indexes always deploy; functions only
+# when something they are built from changed.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  # Never cut a deploy short halfway through.
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      functions: ${{ steps.filter.outputs.functions }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            functions:
+              - 'functions/**'
+              - 'engine/**'
+              - 'data/**'
+              - 'firebase.json'
+              - 'package-lock.json'
+
+  check:
+    name: Check before deploying
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    name: Deploy to Firebase
+    needs: [changes, check]
+    # Skipped (not failed) until the Google sign-in in docs/deployment.md is set up.
+    if: vars.WIF_PROVIDER != ''
+    runs-on: ubuntu-latest
+    # Deploys need the production environment, where an approval rule can be added if wanted.
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace web
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      # This account can deploy everything, so only jobs in the production environment (which only
+      # runs for main) are allowed to use it. See docs/deployment.md.
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_DEPLOY_SERVICE_ACCOUNT }}
+      - run: npm install --global firebase-tools@15
+      # Rules and indexes go first so the app never runs against rules older than the code.
+      - name: Deploy rules, indexes and hosting
+        run: firebase deploy --only firestore:rules,firestore:indexes,hosting --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}" --non-interactive
+      # firebase.json builds the functions bundle before it uploads.
+      - name: Deploy functions
+        if: needs.changes.outputs.functions == 'true'
+        run: firebase deploy --only functions --project "${{ vars.VITE_FIREBASE_PROJECT_ID }}" --non-interactive

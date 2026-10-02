@@ -1,10 +1,163 @@
 rules_version = '2';
 
-// Placeholder: deny everything until phase 3 (data layer and rules).
+// Everything lives inside a league, and only league members can read or write its data.
+// The posture is deliberately light: members are trusted, so these rules prevent mistakes
+// (wrong shapes, impersonation, rewriting history) rather than abuse.
+//
+// Fields marked "functions only" are written with the Admin SDK, which bypasses these rules:
+//   leagues:  everything (createLeague, joinLeague, removeMember, regenerateInvite)
+//   players:  linkedUid, mergedInto (mergePlayers, unmergePlayers, joinLeague)
+//   games:    status, summary, summaryError (onRoundWrite)
+//   log:      all writes
+//   games:    deletion (deleteGame), since a game's rounds go with it
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(leagueId) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/leagues/$(leagueId)).data.memberUids;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function nonEmptyString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    match /leagues/{leagueId} {
+      // Lets a user list their leagues with where('memberUids', 'array-contains', uid).
+      allow read: if signedIn() && request.auth.uid in resource.data.memberUids;
+
+      // Leagues are created and changed by functions only (createLeague, joinLeague, ...), so
+      // the creator always gets a player profile and invite codes stay unique.
+      allow create, update, delete: if false;
+
+      match /players/{playerId} {
+        allow read: if isMember(leagueId);
+
+        // Guests only: linking to a login or merging goes through functions.
+        allow create: if isMember(leagueId)
+          && request.resource.data.keys().hasOnly(['name', 'linkedUid', 'retired', 'mergedInto', 'createdBy', 'createdAt'])
+          && request.resource.data.keys().hasAll(['name', 'linkedUid', 'retired', 'mergedInto', 'createdBy', 'createdAt'])
+          && nonEmptyString(request.resource.data.name, 40)
+          && request.resource.data.linkedUid == null
+          && request.resource.data.mergedInto == null
+          && request.resource.data.retired == false
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt is number;
+
+        // Rename or retire only.
+        allow update: if isMember(leagueId)
+          && changedKeys().hasOnly(['name', 'retired'])
+          && nonEmptyString(request.resource.data.name, 40)
+          && request.resource.data.retired is bool;
+
+        allow delete: if false;
+      }
+
+      match /games/{gameId} {
+        allow read: if isMember(leagueId);
+
+        allow create: if isMember(leagueId)
+          && request.resource.data.keys().hasOnly(['settings', 'seatOrder', 'status', 'createdBy', 'createdAt', 'split', 'summary', 'summaryError'])
+          && request.resource.data.keys().hasAll(['settings', 'seatOrder', 'status', 'createdBy', 'createdAt', 'split', 'summary', 'summaryError'])
+          && request.resource.data.settings is map
+          && request.resource.data.settings.limit is int
+          && request.resource.data.settings.buyIn is int
+          && request.resource.data.seatOrder is list
+          && request.resource.data.seatOrder.size() >= 2
+          && request.resource.data.status == 'inProgress'
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt is number
+          && request.resource.data.split == null
+          && request.resource.data.summary == null
+          && request.resource.data.summaryError == null;
+
+        // Settings and seating are locked once created. The only client change is the split.
+        allow update: if isMember(leagueId)
+          && changedKeys().hasOnly(['split'])
+          && (request.resource.data.split == null || request.resource.data.split is map);
+
+        allow delete: if false;
+
+        match /rounds/{roundId} {
+          allow read: if isMember(leagueId);
+
+          allow create: if isMember(leagueId)
+            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
+            && request.resource.data.keys().hasAll(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
+            && request.resource.data.seq is int
+            && request.resource.data.seq > 0
+            && request.resource.data.winnerId is string
+            && request.resource.data.entries is map
+            && request.resource.data.rejoins is list
+            && request.resource.data.scrapped == null
+            && request.resource.data.history == []
+            && request.resource.data.updatedBy == request.auth.uid
+            && request.resource.data.updatedAt is number;
+
+          // Every change (edit, scrap, restore) appends exactly one history entry made by the
+          // caller and keeps all earlier entries untouched, so prior values are never lost.
+          allow update: if isMember(leagueId)
+            && request.resource.data.keys().hasOnly(['seq', 'winnerId', 'entries', 'rejoins', 'scrapped', 'updatedBy', 'updatedAt', 'history'])
+            && request.resource.data.seq == resource.data.seq
+            && request.resource.data.winnerId is string
+            && request.resource.data.entries is map
+            && request.resource.data.rejoins is list
+            && (request.resource.data.scrapped == null
+                || (request.resource.data.scrapped is map
+                    && nonEmptyString(request.resource.data.scrapped.reason, 200)))
+            && (request.resource.data.scrapped == resource.data.scrapped
+                || request.resource.data.scrapped == null
+                || request.resource.data.scrapped.by == request.auth.uid)
+            && request.resource.data.updatedBy == request.auth.uid
+            && request.resource.data.updatedAt is number
+            && request.resource.data.history is list
+            && request.resource.data.history.size() == resource.data.history.size() + 1
+            && (resource.data.history.size() == 0
+                || request.resource.data.history[0:resource.data.history.size()] == resource.data.history)
+            && request.resource.data.history[resource.data.history.size()].by == request.auth.uid
+            && request.resource.data.history[resource.data.history.size()].prev is map;
+
+          allow delete: if false;
+        }
+      }
+
+      // A payment marked as paid. Its id is the night plus who pays whom and how much, so a mark can
+      // only ever mean exactly that payment, and one payment can't be marked twice. Anyone in the
+      // league can mark a payment paid or undo it.
+      match /settled/{settledId} {
+        allow read: if isMember(leagueId);
+
+        allow create: if isMember(leagueId)
+          && request.resource.data.keys().hasOnly(['day', 'from', 'to', 'amount', 'by', 'at'])
+          && request.resource.data.keys().hasAll(['day', 'from', 'to', 'amount', 'by', 'at'])
+          && request.resource.data.day is string
+          && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.from is string
+          && request.resource.data.to is string
+          && request.resource.data.from != request.resource.data.to
+          && request.resource.data.amount is int
+          && request.resource.data.amount > 0
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.at is number
+          && settledId == request.resource.data.day + '_' + request.resource.data.from + '_'
+               + request.resource.data.to + '_' + string(request.resource.data.amount);
+
+        allow update: if false;
+        allow delete: if isMember(leagueId);
+      }
+
+      match /log/{entryId} {
+        allow read: if isMember(leagueId);
+        allow write: if false;
+      }
     }
   }
 }

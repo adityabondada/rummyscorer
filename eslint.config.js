@@ -4,14 +4,24 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/lib/**', '**/node_modules/**', '**/coverage/**', '.firebase/**'],
+    ignores: [
+      '**/dist/**',
+      'functions/lib/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      '.firebase/**',
+      'scripts/.seed-demo.mjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
   },
 );

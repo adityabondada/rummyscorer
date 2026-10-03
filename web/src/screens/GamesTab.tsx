@@ -10,6 +10,7 @@ import { pickablePlayers } from '../lib/names';
 import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
 import { nightShareText, shareOrCopy } from '../lib/share';
+import { buildNightCard, renderGameCard, shareImage } from '../lib/shareImage';
 import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 import { SettlingUp } from './SettlingUp';
@@ -91,19 +92,39 @@ export function GamesTab() {
 
   const shareNight = async (night: ReturnType<typeof nights>[number]) => {
     setError('');
-    const text = nightShareText({
-      leagueName: league.name,
-      dayLabel: dayLabel(night.day),
-      finishedGames: night.games.length - night.inProgress,
-      inProgress: night.inProgress,
-      nets: night.nets,
-      transfers: night.transfers,
-      names,
-    });
-    const result = await shareOrCopy(`${league.name}, ${dayLabel(night.day)}`, text);
-    if (result === 'failed') setError("Couldn't share or copy. Try again.");
-    else if (result !== 'cancelled') {
-      setShared({ day: night.day, note: result === 'copied' ? 'Copied' : 'Shared' });
+    const label = dayLabel(night.day);
+    const title = `${league.name}, ${label}`;
+    let note: string | null = null;
+    try {
+      // A picture, like a single game. Only where the browser can't draw it does it fall back to text.
+      const picture = await renderGameCard(
+        buildNightCard({ leagueName: league.name, dayLabel: label, night, names }),
+      );
+      const slug = league.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      const result = await shareImage(picture, `${slug || 'rummy'}-${night.day}.png`, title);
+      note = result === 'shared' ? 'Shared' : result === 'saved' ? 'Saved' : null;
+    } catch {
+      const text = nightShareText({
+        leagueName: league.name,
+        dayLabel: label,
+        finishedGames: night.games.length - night.inProgress,
+        inProgress: night.inProgress,
+        nets: night.nets,
+        transfers: night.transfers,
+        names,
+      });
+      const result = await shareOrCopy(title, text);
+      if (result === 'failed') {
+        setError("Couldn't share or copy. Try again.");
+        return;
+      }
+      note = result === 'copied' ? 'Copied' : result === 'shared' ? 'Shared' : null;
+    }
+    if (note) {
+      setShared({ day: night.day, note });
       setTimeout(() => setShared((now) => (now?.day === night.day ? null : now)), 2500);
     }
   };

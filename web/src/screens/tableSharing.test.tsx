@@ -213,6 +213,47 @@ describe('the share window for a game', () => {
   });
 });
 
+describe('the live view link', () => {
+  function setup(state: GameState, shareCode: string | null = null) {
+    render(
+      <ShareModal
+        leagueId="L1"
+        gameId="G1"
+        leagueName="Friday Rummy"
+        state={state}
+        names={names}
+        shareCode={shareCode}
+        onClose={() => {}}
+      />,
+    );
+  }
+
+  it('is offered for a game being played', async () => {
+    setup(open());
+    expect(await screen.findByRole('heading', { name: 'Live view link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create a live view link' })).toBeInTheDocument();
+  });
+
+  it('is not offered for a finished game, only the Share button', async () => {
+    setup(finished());
+    await screen.findByRole('img');
+    expect(screen.queryByRole('heading', { name: 'Live view link' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Create a live view link' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
+  });
+
+  it('still shows for a finished game whose link is on, so it can be turned off', async () => {
+    setup(finished(), 'abcdefghijklmnopqrstuv');
+    expect(await screen.findByTestId('view-link')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Turn off' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Create a live view link' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe('sharing the scores as a picture', () => {
   function setup(state: GameState = finished()) {
     render(
@@ -611,36 +652,51 @@ describe('sharing a night s results', () => {
     },
   });
 
-  it('has a Share button on a night with results, which sends the nets and who pays whom', async () => {
-    games = {
-      loading: false,
-      value: [night(1, 'finished', { winner: 'a', net: { a: 20, b: -10, c: -10 } })],
-    };
-    const user = renderGames();
-    await user.click(screen.getByRole('button', { name: /Share the results for/ }));
-    const text = clipboard.writeText.mock.calls[0]![0] as string;
-    expect(text).toContain('Friday Rummy · ');
-    expect(text).toContain('1 game');
-    expect(text).toContain('Net: Asha +$20, Bo −$10, Cy −$10');
-    expect(text).toContain('Bo pays Asha $10');
-    expect(await screen.findByText('Copied')).toBeInTheDocument();
+  const oneNight = () => ({
+    loading: false,
+    value: [night(1, 'finished', { winner: 'a', net: { a: 20, b: -10, c: -10 } })],
   });
 
-  it('opens the phone share sheet when there is one, and says Shared', async () => {
-    Object.defineProperty(navigator, 'share', { value: share, configurable: true });
-    games = {
-      loading: false,
-      value: [night(1, 'finished', { winner: 'a', net: { a: 20, b: -10, c: -10 } })],
-    };
+  it('has a Share button on a night with results, which draws a picture of the night', async () => {
+    games = oneNight();
     const user = renderGames();
     await user.click(screen.getByRole('button', { name: /Share the results for/ }));
-    expect(share).toHaveBeenCalledWith(
-      expect.objectContaining({ title: expect.stringContaining('Friday Rummy') }),
+    const model = renderGameCard.mock.calls[0]![0];
+    expect(model).toMatchObject({ kind: 'night', league: 'Friday Rummy', headline: '1 game' });
+    expect(model.rows.map((r: { name: string; value: string }) => [r.name, r.value])).toEqual([
+      ['Asha', '1'],
+      ['Bo', '0'],
+      ['Cy', '0'],
+    ]);
+    expect(model.payments).toContain('Bo pays Asha $10');
+    expect(shareImage).toHaveBeenCalledWith(
+      expect.any(Blob),
+      expect.stringMatching(/^friday-rummy-2026-10-02\.png$/),
+      expect.stringContaining('Friday Rummy'),
     );
+    expect(clipboard.writeText).not.toHaveBeenCalled();
     expect(await screen.findByText('Shared')).toBeInTheDocument();
   });
 
-  it('counts only finished games, and mentions one still being played', async () => {
+  it('says Saved where the picture can only be saved to the device', async () => {
+    shareImage.mockResolvedValue('saved');
+    games = oneNight();
+    const user = renderGames();
+    await user.click(screen.getByRole('button', { name: /Share the results for/ }));
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
+  });
+
+  it('says nothing when the share sheet is closed', async () => {
+    shareImage.mockResolvedValue('cancelled');
+    games = oneNight();
+    const user = renderGames();
+    await user.click(screen.getByRole('button', { name: /Share the results for/ }));
+    await vi.waitFor(() => expect(shareImage).toHaveBeenCalled());
+    expect(screen.queryByText('Shared')).not.toBeInTheDocument();
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument();
+  });
+
+  it('counts only finished games, and says one is still being played', async () => {
     games = {
       loading: false,
       value: [
@@ -650,9 +706,21 @@ describe('sharing a night s results', () => {
     };
     const user = renderGames();
     await user.click(screen.getByRole('button', { name: /Share the results for/ }));
+    const model = renderGameCard.mock.calls[0]![0];
+    expect(model.headline).toBe('1 game');
+    expect(model.subhead).toContain('1 still being played, not counted');
+  });
+
+  it('falls back to text only where the browser cannot draw the picture', async () => {
+    renderGameCard.mockRejectedValue(new Error('no canvas'));
+    games = oneNight();
+    const user = renderGames();
+    await user.click(screen.getByRole('button', { name: /Share the results for/ }));
     const text = clipboard.writeText.mock.calls[0]![0] as string;
-    expect(text).toContain('1 game\n');
-    expect(text).toContain('(1 game still in progress, not counted)');
+    expect(text).toContain('Friday Rummy · ');
+    expect(text).toContain('Net: Asha +$20, Bo −$10, Cy −$10');
+    expect(shareImage).not.toHaveBeenCalled();
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
   it('has no Share button for a night with nothing finished yet', () => {
@@ -661,12 +729,10 @@ describe('sharing a night s results', () => {
     expect(screen.queryByRole('button', { name: /Share the results for/ })).toBeNull();
   });
 
-  it('says so when it can neither share nor copy', async () => {
+  it('says so when the picture cannot be made and the text cannot be shared or copied either', async () => {
+    renderGameCard.mockRejectedValue(new Error('no canvas'));
     clipboard.writeText.mockRejectedValue(new Error('blocked'));
-    games = {
-      loading: false,
-      value: [night(1, 'finished', { winner: 'a', net: { a: 20, b: -10, c: -10 } })],
-    };
+    games = oneNight();
     const user = renderGames();
     await user.click(screen.getByRole('button', { name: /Share the results for/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't share or copy");

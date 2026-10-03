@@ -22,7 +22,7 @@ describe('the text for one game', () => {
     expect(gameShareText({ leagueName: 'L', state, names })).toContain('Bo 60 (out)');
   });
 
-  it('says who won, the nets and who pays whom when it is over', () => {
+  it('gives the scores first when it is over, with who won, and who pays whom at the bottom', () => {
     const state = play([
       { seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(51) } },
       { seq: 2, winnerId: 'a', entries: { b: pts(45) } },
@@ -30,22 +30,34 @@ describe('the text for one game', () => {
     expect(gameShareText({ leagueName: 'Friday Rummy', state, names })).toBe(
       [
         'Friday Rummy',
-        'Asha won the $30 pot.',
-        'Net: Asha +$20, Bo −$10, Cy −$10',
+        'Asha won',
+        'Scores: Asha 0, Cy 51 (out), Bo 55 (out)',
+        'Settling up:',
         'Bo pays Asha $10',
         'Cy pays Asha $10',
       ].join('\n'),
     );
   });
 
-  it('describes a split pot with what each player takes', () => {
+  it('does not lead with the money: no pot or net line', () => {
+    const state = play([
+      { seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(51) } },
+      { seq: 2, winnerId: 'a', entries: { b: pts(45) } },
+    ]);
+    const text = gameShareText({ leagueName: 'L', state, names });
+    expect(text).not.toContain('pot');
+    expect(text).not.toContain('Net:');
+    expect(text.indexOf('Scores:')).toBeLessThan(text.indexOf('Settling up'));
+  });
+
+  it('describes a split pot by its scores, with no settling up when nobody owes', () => {
     const state = play([{ seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(51) } }], {
       afterSeq: 1,
-      shares: { a: 12, b: 18 },
+      shares: { a: 10, b: 20 },
     });
     const text = gameShareText({ leagueName: 'L', state, names });
-    expect(text).toContain('Split pot: Asha $12, Bo $18');
-    expect(text).toContain('Net: ');
+    expect(text).toContain('Split pot');
+    expect(text).toContain('Scores: ');
   });
 
   it('puts a link on the last line, labelled for what it is', () => {

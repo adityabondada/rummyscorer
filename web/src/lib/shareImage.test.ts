@@ -27,7 +27,7 @@ const inProgress = () => play([{ seq: 1, winnerId: 'a', entries: { b: pts(30), c
 const when = new Date(2026, 9, 2, 20).getTime();
 
 describe('what the picture says', () => {
-  it('for a finished game: the winner, the pot, and each player with their net, best first', () => {
+  it('for a finished game: the winner and each player s final score, best first, with the money small', () => {
     const card = buildGameCard({
       leagueName: 'Friday Rummy',
       state: finished(),
@@ -40,14 +40,21 @@ describe('what the picture says', () => {
       league: 'Friday Rummy',
       dateLabel: 'Friday, Oct 2',
       headline: 'Asha won',
-      subhead: '$30 pot · 2 rounds',
+      subhead: '2 rounds · out past 100',
     });
     expect(card.rows.map((r) => [r.rank, r.name, r.value, r.sub, r.tone, r.highlight])).toEqual([
-      [1, 'Asha', '+$20', 'Winner', 'win', true],
-      [2, 'Bo', '−$10', '2nd', 'lose', false],
-      [3, 'Cy', '−$10', '3rd', 'lose', false],
+      [1, 'Asha', '0', 'Winner · +$20', 'win', true],
+      [2, 'Bo', '120', 'Out · −$10', 'out', false],
+      [3, 'Cy', '101', 'Out · −$10', 'out', false],
     ]);
-    expect(card.rows.every((r) => r.bar === null)).toBe(true);
+  });
+
+  it('puts the score in the big number, not the money, and shows the race bar for everyone', () => {
+    const card = buildGameCard({ leagueName: 'L', state: finished(), names });
+    expect(card.rows.every((r) => /^\d+$/.test(r.value))).toBe(true);
+    expect(card.rows.every((r) => r.bar !== null)).toBe(true);
+    expect(card.rows[0]!.bar).toMatchObject({ pct: 0, tone: 'safe' });
+    expect(card.rows[1]!.bar).toMatchObject({ pct: 100, tone: 'out' });
   });
 
   it('lists who pays whom', () => {
@@ -58,20 +65,24 @@ describe('what the picture says', () => {
   it('says "1 round" for a one-round game, and leaves the date out when it is not known', () => {
     const one = play([{ seq: 1, winnerId: 'a', entries: { b: pts(101), c: pts(101) } }]);
     const card = buildGameCard({ leagueName: 'L', state: one, names });
-    expect(card.subhead).toBe('$30 pot · 1 round');
+    expect(card.subhead).toBe('1 round · out past 100');
     expect(card.dateLabel).toBe('');
   });
 
-  it('for a split: says so, with what each player takes', () => {
+  it('for a split: says so, and still shows everyone s score', () => {
     const state = play([{ seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(5) } }], {
       afterSeq: 1,
       shares: { a: 10, b: 10, c: 10 },
     });
     const card = buildGameCard({ leagueName: 'L', state, names });
     expect(card.headline).toBe('Split pot');
-    expect(card.subhead).toBe('Asha $10 · Bo $10 · Cy $10');
-    expect(card.rows.every((r) => r.sub === 'Shared win')).toBe(true);
-    expect(card.rows.every((r) => r.tone === 'even')).toBe(true);
+    expect(card.subhead).toBe('1 round · out past 100');
+    expect(card.rows.map((r) => [r.name, r.value])).toEqual([
+      ['Asha', '0'],
+      ['Bo', '10'],
+      ['Cy', '5'],
+    ]);
+    expect(card.rows.every((r) => r.sub.startsWith('Shared win'))).toBe(true);
     expect(card.payments).toEqual([]);
   });
 
@@ -143,11 +154,12 @@ describe('drawing the picture', () => {
       'Friday Rummy',
       m.dateLabel,
       'Asha won',
-      '$30 pot · 2 rounds',
+      '2 rounds · out past 100',
       'Asha',
-      '+$20',
+      '0',
+      'Winner · +$20',
       'Bo',
-      '−$10',
+      '120',
       'Settling up',
       'Bo pays Asha $10',
       'Scored with Rummy Score Tracker',
@@ -175,14 +187,17 @@ describe('drawing the picture', () => {
     expect(texts).not.toContain('Settling up');
   });
 
-  it('draws the race bar for a game still on, and not for a finished one', () => {
+  it('shows the scores in the big numbers and the payments last, in a smaller type', () => {
+    const { ctx, texts } = recorder();
+    drawGameCard(ctx, model());
+    expect(texts.indexOf('120')).toBeLessThan(texts.indexOf('Settling up'));
+    expect(texts.indexOf('Settling up')).toBeLessThan(texts.indexOf('Bo pays Asha $10'));
+    expect(texts.at(-1)).toBe('Scored with Rummy Score Tracker');
+  });
+
+  it('draws the race bar for a game still on', () => {
     const live = recorder();
     drawGameCard(live.ctx, buildGameCard({ leagueName: 'L', state: inProgress(), names }));
-    const done = recorder();
-    drawGameCard(done.ctx, model());
-    expect(live.calls.filter((c) => c === 'fill').length).toBeGreaterThan(
-      done.calls.filter((c) => c === 'fill').length - 3,
-    );
     expect(live.texts).toContain('100 to go');
   });
 

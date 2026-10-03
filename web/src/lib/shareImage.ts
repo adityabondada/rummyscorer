@@ -55,28 +55,31 @@ export function buildGameCard(args: {
       (a, b) => summary.positions[a]! - summary.positions[b]! || summary.net[b]! - summary.net[a]!,
     );
     const split = summary.outcome === 'split';
+    const { limit } = state.settings;
+    // The scores are the point: each player's final points, with the race bar. What they won or
+    // lost is small, under the name, and who pays whom is at the very bottom.
     const rows: CardRow[] = order.map((id, i) => {
-      const net = summary.net[id]!;
+      const p = state.players[id]!;
       const won = summary.winnerIds.includes(id);
+      const view = raceView(p.total, limit, p.active);
       return {
         rank: i + 1,
         name: nameOf(id),
-        value: signed(net),
-        sub: won ? (split ? 'Shared win' : 'Winner') : ordinal(summary.positions[id]!),
-        tone: net > 0 ? 'win' : net < 0 ? 'lose' : 'even',
-        bar: null,
+        value: String(p.total),
+        sub: `${won ? (split ? 'Shared win' : 'Winner') : p.active ? ordinal(summary.positions[id]!) : 'Out'} · ${signed(summary.net[id]!)}`,
+        tone: won ? 'win' : p.active ? 'plain' : 'out',
+        bar: { pct: view.pct, tone: view.tone },
         highlight: won,
       };
     });
     const winners = summary.winnerIds.map(nameOf).join(' & ');
+    const rounds = `${summary.rounds} round${summary.rounds === 1 ? '' : 's'}`;
     return {
       kind: 'finished',
       league: leagueName,
       dateLabel,
       headline: split ? 'Split pot' : `${winners} won`,
-      subhead: split
-        ? summary.winnerIds.map((id) => `${nameOf(id)} $${summary.payouts[id] ?? 0}`).join(' · ')
-        : `$${summary.pot} pot · ${summary.rounds} round${summary.rounds === 1 ? '' : 's'}`,
+      subhead: `${rounds} · out past ${limit}`,
       rows,
       payments: simplifyTransfers(summary.net).map(
         (t) => `${nameOf(t.from)} pays ${nameOf(t.to)} $${t.amount}`,
@@ -138,8 +141,8 @@ const VALUE_COLOR: Record<CardRow['tone'], string> = {
 const HEADER_H = 250;
 const HEADLINE_H = 210;
 const ROW_H = 118;
-const PAY_HEAD_H = 110;
-const PAY_ROW_H = 62;
+const PAY_HEAD_H = 84;
+const PAY_ROW_H = 50;
 const FOOTER_H = 130;
 
 /** How tall the picture is for this content. */
@@ -274,10 +277,10 @@ export function drawGameCard(ctx: Ctx, model: CardModel): void {
     y += 20;
     ctx.fillStyle = LINE;
     ctx.fillRect(PAD, y, W - PAD * 2, 3);
-    text(ctx, 'Settling up', PAD, y + 62, { size: 40, weight: 700, color: INK });
+    text(ctx, 'Settling up', PAD, y + 50, { size: 30, weight: 600, color: MUTED });
     let py = y + PAY_HEAD_H;
     for (const line of model.payments) {
-      text(ctx, line, PAD, py + 22, { size: 38, color: INK, max: W - PAD * 2 });
+      text(ctx, line, PAD, py + 18, { size: 30, color: MUTED, max: W - PAD * 2 });
       py += PAY_ROW_H;
     }
   }

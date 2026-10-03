@@ -28,22 +28,22 @@ export function gameShareText(args: {
   const { leagueName, state, names, url } = args;
   const lines = [leagueName];
   const summary = summarize(state);
+  const scores = Object.values(state.players)
+    .sort((a, b) => a.total - b.total || name(names, a.id).localeCompare(name(names, b.id)))
+    .map((p) => `${name(names, p.id)} ${p.total}${p.active ? '' : ' (out)'}`)
+    .join(', ');
   if (summary) {
     const winners = summary.winnerIds.map((id) => name(names, id)).join(' & ');
+    // The scores come first; the money is below them.
     lines.push(
-      summary.outcome === 'split'
-        ? `Split pot: ${summary.winnerIds
-            .map((id) => `${name(names, id)} ${dollars(summary.payouts[id] ?? 0)}`)
-            .join(', ')}`
-        : `${winners} won the ${dollars(summary.pot)} pot.`,
-      `Net: ${netLine(summary.net, names)}`,
-      ...paymentLines(simplifyTransfers(summary.net), names),
+      summary.outcome === 'split' ? 'Split pot' : `${winners} won`,
+      `Scores: ${scores}`,
+      ...(simplifyTransfers(summary.net).length > 0
+        ? ['Settling up:', ...paymentLines(simplifyTransfers(summary.net), names)]
+        : []),
     );
   } else {
-    const standings = Object.values(state.players)
-      .sort((a, b) => a.total - b.total || name(names, a.id).localeCompare(name(names, b.id)))
-      .map((p) => `${name(names, p.id)} ${p.total}${p.active ? '' : ' (out)'}`);
-    lines.push(`Round ${state.rounds.length + 1} in progress`, standings.join(', '));
+    lines.push(`Round ${state.rounds.length + 1} in progress`, scores);
   }
   if (url) lines.push(summary ? `Full scores: ${url}` : `Watch live: ${url}`);
   return lines.join('\n');

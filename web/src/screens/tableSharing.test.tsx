@@ -132,7 +132,7 @@ describe('the share window for a game', () => {
     await user.click(screen.getByRole('button', { name: 'Share as text' }));
     expect(share).toHaveBeenCalledWith({
       title: 'Friday Rummy scores',
-      text: expect.stringContaining('Asha won the $30 pot.'),
+      text: expect.stringContaining('Asha won'),
     });
     expect(await screen.findByRole('status')).toHaveTextContent('Shared');
     expect(clipboard.writeText).not.toHaveBeenCalled();
@@ -307,9 +307,7 @@ describe('sharing the scores as a picture', () => {
     const user = setup();
     await screen.findByRole('img');
     await user.click(screen.getByRole('button', { name: 'Share as text' }));
-    expect(clipboard.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('Asha won the $30 pot.'),
-    );
+    expect(clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('Asha won\nScores:'));
   });
 
   it('lets go of the picture when the window closes', async () => {

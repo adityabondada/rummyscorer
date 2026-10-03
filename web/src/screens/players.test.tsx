@@ -320,12 +320,27 @@ describe('adding a player', () => {
 });
 
 describe('inviting people', () => {
-  it('is a button for the admin only', () => {
+  it('is a button for every member, not only the admin', () => {
     setup('ravi');
-    expect(screen.queryByRole('button', { name: 'Invite' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Invite' })).toBeInTheDocument();
     cleanup();
     setup('admin');
     expect(screen.getByRole('button', { name: 'Invite' })).toBeInTheDocument();
+  });
+
+  it('gives a member the link and the code, and a way to copy the link', async () => {
+    const user = setup('ravi');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Invite people' }));
+    expect(dialog.getByTestId('invite-link')).toHaveTextContent('/join/ABCD2345');
+    expect(dialog.getByText('ABCD2345')).toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+  });
+
+  it('keeps replacing the invite, which cuts off links already out there, for the admin', async () => {
+    const user = setup('ravi');
+    await user.click(screen.getByRole('button', { name: 'Invite' }));
+    expect(screen.queryByRole('button', { name: 'New invite' })).not.toBeInTheDocument();
   });
 
   it('shows the link and the code in a popup, not on the page', async () => {

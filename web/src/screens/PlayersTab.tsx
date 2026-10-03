@@ -135,11 +135,9 @@ export function PlayersTab() {
         <Button className="flex-1" onClick={() => setAdding(true)}>
           Add player
         </Button>
-        {isAdmin && (
-          <Button variant="secondary" className="flex-1" onClick={() => setInviting(true)}>
-            Invite
-          </Button>
-        )}
+        <Button variant="secondary" className="flex-1" onClick={() => setInviting(true)}>
+          Invite
+        </Button>
       </div>
       <ErrorText>{error}</ErrorText>
 
@@ -260,16 +258,19 @@ export function PlayersTab() {
               <Button variant="secondary" onClick={() => void copy()}>
                 {copied ? 'Copied' : 'Copy link'}
               </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm('Old links and codes will stop working. Continue?')) {
-                    void run(() => regenerateInvite({ leagueId }));
-                  }
-                }}
-              >
-                New invite
-              </Button>
+              {/* Replacing the invite cuts off links people may already have, so only the admin can. */}
+              {isAdmin && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (window.confirm('Old links and codes will stop working. Continue?')) {
+                      void run(() => regenerateInvite({ leagueId }));
+                    }
+                  }}
+                >
+                  New invite
+                </Button>
+              )}
             </div>
           </div>
         </Modal>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { playerPath, playersPath, type PlayerDoc } from '@rummy/data';
 import { errorMessage, mergePlayers, regenerateInvite, removeMember, unmergePlayers } from '../api';
 import { db } from '../firebase';
+import { shareOrCopy } from '../lib/share';
 import { Badge, Button, ErrorText, Field, Modal } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 
@@ -78,6 +79,7 @@ export function PlayersTab() {
   const [name, setName] = useState('');
   const [inviting, setInviting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [sharedNote, setSharedNote] = useState('');
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -119,6 +121,20 @@ export function PlayersTab() {
     }
   };
 
+  /** Opens the phone share sheet with the invite, so it goes straight to a chat; copies it elsewhere. */
+  const shareInvite = async () => {
+    setError('');
+    setSharedNote('');
+    const result = await shareOrCopy(
+      `Join ${league.name}`,
+      `Join ${league.name} on Rummy Score Tracker: ${inviteLink}`,
+    );
+    if (result === 'failed')
+      setError("Couldn't share or copy. Select the link and copy it by hand.");
+    else if (result === 'shared') setSharedNote('Shared');
+    else if (result === 'copied') setSharedNote('Copied. Paste it into your chat.');
+  };
+
   const current = Object.entries(players)
     .filter(([, p]) => p.mergedInto === null)
     .sort(([, a], [, b]) => a.name.localeCompare(b.name));
@@ -135,11 +151,9 @@ export function PlayersTab() {
         <Button className="flex-1" onClick={() => setAdding(true)}>
           Add player
         </Button>
-        {isAdmin && (
-          <Button variant="secondary" className="flex-1" onClick={() => setInviting(true)}>
-            Invite
-          </Button>
-        )}
+        <Button variant="secondary" className="flex-1" onClick={() => setInviting(true)}>
+          Invite
+        </Button>
       </div>
       <ErrorText>{error}</ErrorText>
 
@@ -256,20 +270,31 @@ export function PlayersTab() {
             <p className="text-sm">
               Code: <strong className="tracking-widest">{league.inviteCode}</strong>
             </p>
+            <Button className="w-full" onClick={() => void shareInvite()}>
+              Share invite
+            </Button>
+            {sharedNote && (
+              <p role="status" className="text-sm text-emerald-700">
+                {sharedNote}
+              </p>
+            )}
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => void copy()}>
                 {copied ? 'Copied' : 'Copy link'}
               </Button>
-              <Button
-                variant="danger"
-                onClick={() => {
-                  if (window.confirm('Old links and codes will stop working. Continue?')) {
-                    void run(() => regenerateInvite({ leagueId }));
-                  }
-                }}
-              >
-                New invite
-              </Button>
+              {/* Replacing the invite cuts off links people may already have, so only the admin can. */}
+              {isAdmin && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    if (window.confirm('Old links and codes will stop working. Continue?')) {
+                      void run(() => regenerateInvite({ leagueId }));
+                    }
+                  }}
+                >
+                  New invite
+                </Button>
+              )}
             </div>
           </div>
         </Modal>

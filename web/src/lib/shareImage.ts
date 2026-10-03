@@ -1,4 +1,5 @@
 import { simplifyTransfers, summarize, type GameState } from '@rummy/engine';
+import type { Night } from './night';
 import { raceView, type RaceTone } from './race';
 
 /** One player's line on the picture. */
@@ -17,11 +18,13 @@ export interface CardRow {
 
 /** Everything the picture says, worked out before any drawing, so it can be checked on its own. */
 export interface CardModel {
-  kind: 'finished' | 'live';
+  kind: 'finished' | 'live' | 'night';
   league: string;
   dateLabel: string;
   headline: string;
   subhead: string;
+  /** What the big number on each row means, in small type above the first one. */
+  valueLabel: string;
   rows: CardRow[];
   /** "Bo pays Cy $20", for a finished game. */
   payments: string[];
@@ -80,6 +83,7 @@ export function buildGameCard(args: {
       dateLabel,
       headline: split ? 'Split pot' : `${winners} won`,
       subhead: `${rounds} · out past ${limit}`,
+      valueLabel: 'final score',
       rows,
       payments: simplifyTransfers(summary.net).map(
         (t) => `${nameOf(t.from)} pays ${nameOf(t.to)} $${t.amount}`,
@@ -97,6 +101,7 @@ export function buildGameCard(args: {
     dateLabel,
     headline: `Round ${state.rounds.length + 1}`,
     subhead: `In progress · out past ${limit}`,
+    valueLabel: 'score',
     rows: players.map((p, i) => {
       const view = raceView(p.total, limit, p.active);
       return {
@@ -110,6 +115,67 @@ export function buildGameCard(args: {
       };
     }),
     payments: [],
+  };
+}
+
+/**
+ * A night's results as a picture: who won most games, with each player's games won large and what
+ * they won or lost small, and who pays whom at the bottom. Only finished games count.
+ */
+export function buildNightCard(args: {
+  leagueName: string;
+  dayLabel: string;
+  night: Night;
+  names: Record<string, string>;
+}): CardModel {
+  const { leagueName, dayLabel, night, names } = args;
+  const nameOf = (id: string) => names[id] ?? '?';
+  const finished = night.games.filter((g) => g.doc.status === 'finished' && g.doc.summary);
+
+  const tally: Record<string, { wins: number; played: number }> = {};
+  for (const { doc } of finished) {
+    for (const id of Object.keys(doc.summary!.players)) {
+      const t = (tally[id] ??= { wins: 0, played: 0 });
+      t.played += 1;
+      if (doc.summary!.winnerIds.includes(id)) t.wins += 1;
+    }
+  }
+  const ids = Object.keys(tally).sort(
+    (a, b) =>
+      tally[b]!.wins - tally[a]!.wins ||
+      (night.nets[b] ?? 0) - (night.nets[a] ?? 0) ||
+      nameOf(a).localeCompare(nameOf(b)),
+  );
+  const most = Math.max(0, ...ids.map((id) => tally[id]!.wins));
+  const leaders = ids.filter((id) => tally[id]!.wins === most && most > 0);
+
+  const games = `${finished.length} game${finished.length === 1 ? '' : 's'}`;
+  const still =
+    night.inProgress > 0 ? ` · ${night.inProgress} still being played, not counted` : '';
+  return {
+    kind: 'night',
+    league: leagueName,
+    dateLabel: dayLabel,
+    headline: games,
+    subhead:
+      leaders.length > 0
+        ? `Most wins: ${leaders.map(nameOf).join(', ')} (${most})${still}`
+        : `No wins yet${still}`,
+    valueLabel: 'games won',
+    rows: ids.map((id, i) => {
+      const net = night.nets[id] ?? 0;
+      const t = tally[id]!;
+      return {
+        rank: i + 1,
+        name: nameOf(id),
+        value: String(t.wins),
+        sub: `${t.played} played · ${signed(net)}`,
+        tone: leaders.includes(id) ? 'win' : 'plain',
+        bar: null,
+        highlight: leaders.includes(id),
+      };
+    }),
+    payments: night.transfers.map((t) => `${nameOf(t.from)} pays ${nameOf(t.to)} $${t.amount}`),
   };
 }
 
@@ -139,7 +205,7 @@ const VALUE_COLOR: Record<CardRow['tone'], string> = {
 };
 
 const HEADER_H = 250;
-const HEADLINE_H = 210;
+const HEADLINE_H = 240;
 const ROW_H = 118;
 const PAY_HEAD_H = 84;
 const PAY_ROW_H = 50;
@@ -235,6 +301,7 @@ export function drawGameCard(ctx: Ctx, model: CardModel): void {
 
   // One row per player.
   let y = HEADER_H + HEADLINE_H;
+  text(ctx, model.valueLabel, W - PAD, y - 16, { size: 26, color: MUTED, align: 'right' });
   for (const row of model.rows) {
     if (row.highlight) {
       ctx.fillStyle = '#ecfdf5';

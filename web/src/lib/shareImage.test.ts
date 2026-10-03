@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, replay, type Round } from '@rummy/engine';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildGameCard,
+  buildNightCard,
   CARD_WIDTH,
   cardHeight,
   drawGameCard,
@@ -298,5 +299,120 @@ describe('sending the picture', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     expect(await shareImage(blob, 'scores.png', 'T')).toBe('saved');
     expect(click).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('what a night picture says', () => {
+  const game = (
+    id: string,
+    status: 'finished' | 'inProgress',
+    winner: string | null,
+    net: Record<string, number>,
+  ) =>
+    ({
+      id,
+      doc: {
+        status,
+        summary:
+          winner === null
+            ? null
+            : {
+                winnerIds: [winner],
+                players: Object.fromEntries(Object.keys(net).map((p) => [p, {}])),
+              },
+      },
+    }) as never;
+
+  const night = (over = {}) => ({
+    day: '2026-10-02',
+    games: [
+      game('1', 'finished', 'a', { a: 20, b: -10, c: -10 }),
+      game('2', 'finished', 'a', { a: 20, b: -10, c: -10 }),
+      game('3', 'finished', 'b', { a: -20, b: 40, c: -20 }),
+    ],
+    nets: { a: 20, b: 20, c: -40 },
+    transfers: [
+      { from: 'c', to: 'a', amount: 20 },
+      { from: 'c', to: 'b', amount: 20 },
+    ],
+    inProgress: 0,
+    ...over,
+  });
+
+  const card = (n = night()) =>
+    buildNightCard({
+      leagueName: 'Friday Rummy',
+      dayLabel: 'Friday, Oct 2',
+      night: n as never,
+      names,
+    });
+
+  it('leads with games won, most first, with what each player won or lost small beside it', () => {
+    const c = card();
+    expect(c).toMatchObject({
+      kind: 'night',
+      league: 'Friday Rummy',
+      dateLabel: 'Friday, Oct 2',
+      headline: '3 games',
+      valueLabel: 'games won',
+      subhead: 'Most wins: Asha (2)',
+    });
+    expect(c.rows.map((r) => [r.rank, r.name, r.value, r.sub, r.highlight])).toEqual([
+      [1, 'Asha', '2', '3 played · +$20', true],
+      [2, 'Bo', '1', '3 played · +$20', false],
+      [3, 'Cy', '0', '3 played · −$40', false],
+    ]);
+  });
+
+  it('puts who pays whom last', () => {
+    expect(card().payments).toEqual(['Cy pays Asha $20', 'Cy pays Bo $20']);
+  });
+
+  it('shares the top spot when games won are tied, and breaks other ties by money', () => {
+    const tied = night({
+      games: [
+        game('1', 'finished', 'a', { a: 10, b: -10 }),
+        game('2', 'finished', 'b', { a: -10, b: 10 }),
+      ],
+      nets: { a: 0, b: 0 },
+      transfers: [],
+    });
+    const c = card(tied);
+    expect(c.subhead).toBe('Most wins: Asha, Bo (1)');
+    expect(c.rows.every((r) => r.highlight)).toBe(true);
+    expect(c.payments).toEqual([]);
+  });
+
+  it('counts only finished games, and says one is still being played', () => {
+    const c = card(
+      night({
+        games: [game('1', 'finished', 'a', { a: 20, b: -20 }), game('2', 'inProgress', null, {})],
+        inProgress: 1,
+      }),
+    );
+    expect(c.headline).toBe('1 game');
+    expect(c.subhead).toBe('Most wins: Asha (1) · 1 still being played, not counted');
+  });
+
+  it('has no leader when nobody has won a game', () => {
+    const c = card(night({ games: [], nets: {}, transfers: [] }));
+    expect(c.rows).toEqual([]);
+    expect(c.subhead).toBe('No wins yet');
+  });
+
+  it('can be drawn: the league, the day, each player and the payments', () => {
+    const { ctx, texts } = recorder();
+    drawGameCard(ctx, card());
+    for (const line of [
+      'Friday Rummy',
+      'Friday, Oct 2',
+      '3 games',
+      'games won',
+      'Asha',
+      '3 played · +$20',
+      'Settling up',
+    ]) {
+      expect(texts, line).toContain(line);
+    }
   });
 });

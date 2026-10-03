@@ -41,6 +41,9 @@ export function ShareModal({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const link = code ? viewUrl(code) : null;
+  // Watching live is for a game being played. A finished game only shows it if a link is still on,
+  // so that it can be turned off.
+  const showLive = state.status !== 'finished' || link !== null;
 
   // The picture is drawn as soon as the window opens, so it can be seen before it is sent.
   const model = useMemo(
@@ -161,45 +164,47 @@ export function ShareModal({
           </Button>
         </section>
 
-        <section className="space-y-2 border-t border-slate-100 pt-4">
-          <h3 className="font-medium">Live view link</h3>
-          <p className="text-sm text-slate-600">
-            Anyone with the link can watch the scores as they change, without signing in. They can't
-            change anything. Turn it off whenever you like.
-          </p>
-          {link ? (
-            <>
-              <p
-                className="break-all rounded-lg bg-slate-50 px-3 py-2 text-sm"
-                data-testid="view-link"
-              >
-                {link}
-              </p>
-              <div className="flex gap-2">
-                <Button variant="secondary" className="flex-1" onClick={() => void copyLink()}>
-                  Copy link
-                </Button>
-                <Button
-                  variant="danger"
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={() => void setLink(false)}
+        {showLive && (
+          <section className="space-y-2 border-t border-slate-100 pt-4">
+            <h3 className="font-medium">Live view link</h3>
+            <p className="text-sm text-slate-600">
+              Anyone with the link can watch the scores as they change, without signing in. They
+              can't change anything. Turn it off whenever you like.
+            </p>
+            {link ? (
+              <>
+                <p
+                  className="break-all rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                  data-testid="view-link"
                 >
-                  Turn off
-                </Button>
-              </div>
-            </>
-          ) : (
-            <Button
-              variant="secondary"
-              className="w-full"
-              disabled={busy}
-              onClick={() => void setLink(true)}
-            >
-              {busy ? 'Making the link…' : 'Create a live view link'}
-            </Button>
-          )}
-        </section>
+                  {link}
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="secondary" className="flex-1" onClick={() => void copyLink()}>
+                    Copy link
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className="flex-1"
+                    disabled={busy}
+                    onClick={() => void setLink(false)}
+                  >
+                    Turn off
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                className="w-full"
+                disabled={busy}
+                onClick={() => void setLink(true)}
+              >
+                {busy ? 'Making the link…' : 'Create a live view link'}
+              </Button>
+            )}
+          </section>
+        )}
 
         {note && (
           <p role="status" className="text-sm text-emerald-700">

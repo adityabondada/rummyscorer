@@ -360,6 +360,59 @@ describe('inviting people', () => {
     expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
   });
 
+  describe('sharing the invite', () => {
+    const setShare = (impl: unknown) =>
+      Object.defineProperty(navigator, 'share', { value: impl, configurable: true });
+    afterEach(() => setShare(undefined));
+
+    it('has a Share invite button, for a member as well as the admin', async () => {
+      const user = setup('ravi');
+      await user.click(screen.getByRole('button', { name: 'Invite' }));
+      expect(screen.getByRole('button', { name: 'Share invite' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    });
+
+    it('opens the phone share sheet with the league name and the link', async () => {
+      const share = vi.fn().mockResolvedValue(undefined);
+      setShare(share);
+      const user = setup();
+      await user.click(screen.getByRole('button', { name: 'Invite' }));
+      await user.click(screen.getByRole('button', { name: 'Share invite' }));
+      expect(share).toHaveBeenCalledWith({
+        title: 'Join Friday Rummy',
+        text: `Join Friday Rummy on Rummy Score Tracker: ${window.location.origin}/join/ABCD2345`,
+      });
+      expect(await screen.findByRole('status')).toHaveTextContent('Shared');
+    });
+
+    it('copies the message where there is no share sheet, and says so', async () => {
+      const user = setup();
+      await user.click(screen.getByRole('button', { name: 'Invite' }));
+      await user.click(screen.getByRole('button', { name: 'Share invite' }));
+      expect(await navigator.clipboard.readText()).toContain('/join/ABCD2345');
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Copied. Paste it into your chat.',
+      );
+    });
+
+    it('says nothing when the share sheet is closed', async () => {
+      setShare(vi.fn().mockRejectedValue(new DOMException('closed', 'AbortError')));
+      const user = setup();
+      await user.click(screen.getByRole('button', { name: 'Invite' }));
+      await user.click(screen.getByRole('button', { name: 'Share invite' }));
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('says so when it can neither share nor copy', async () => {
+      const user = setup();
+      await user.click(screen.getByRole('button', { name: 'Invite' }));
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('blocked'));
+      await user.click(screen.getByRole('button', { name: 'Share invite' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't share or copy");
+    });
+  });
+
   it('replaces the invite only after a confirmation', async () => {
     const user = setup();
     await user.click(screen.getByRole('button', { name: 'Invite' }));

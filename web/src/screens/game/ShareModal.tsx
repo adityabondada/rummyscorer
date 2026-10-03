@@ -9,9 +9,9 @@ type Picture =
   { status: 'making' } | { status: 'ready'; blob: Blob; url: string } | { status: 'failed' };
 
 /**
- * Two ways to bring the rest of the table in: send the scores to a chat as a picture (or as text),
- * and a link anyone can open to watch the game without signing in. The link can be turned off at
- * any time.
+ * Two ways to bring the rest of the table in: one Share button that sends the scores to a chat as a
+ * picture (as text only where the browser can't draw it), and a link anyone can open to watch the
+ * game without signing in. The link can be turned off at any time.
  */
 export function ShareModal({
   leagueId,
@@ -149,24 +149,15 @@ export function ShareModal({
           )}
           {picture.status === 'failed' && (
             <p className="text-sm text-slate-600">
-              This browser can't make the picture, so share it as text instead.
+              This browser can't make the picture, so the scores will be shared as text.
             </p>
           )}
-          {picture.status !== 'failed' && (
-            <Button
-              className="w-full"
-              disabled={picture.status !== 'ready'}
-              onClick={() => void sendPicture()}
-            >
-              Share picture
-            </Button>
-          )}
           <Button
-            variant={picture.status === 'failed' ? 'primary' : 'secondary'}
             className="w-full"
-            onClick={() => void sendText()}
+            disabled={picture.status === 'making'}
+            onClick={() => void (picture.status === 'ready' ? sendPicture() : sendText())}
           >
-            Share as text
+            Share
           </Button>
         </section>
 

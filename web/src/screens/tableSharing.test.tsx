@@ -93,6 +93,11 @@ afterEach(() => {
 });
 
 describe('the share window for a game', () => {
+  // These are about the text version, which is what Share sends where the picture can't be drawn.
+  beforeEach(() => {
+    renderGameCard.mockRejectedValue(new Error('no canvas'));
+  });
+
   function setup(state: GameState, shareCode: string | null | undefined = null) {
     const onClose = vi.fn();
     render(
@@ -109,17 +114,16 @@ describe('the share window for a game', () => {
     return { user: makeUser(), onClose };
   }
 
-  it('offers to send the scores as a picture or as text, and to make a live view link', () => {
+  it('offers one Share button for the scores, and a live view link', () => {
     setup(open());
-    expect(screen.getByRole('button', { name: 'Share picture' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Share as text' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create a live view link' })).toBeInTheDocument();
     expect(screen.queryByTestId('view-link')).not.toBeInTheDocument();
   });
 
   it('copies the scores where there is no share sheet, and says so', async () => {
     const { user } = setup(open());
-    await user.click(screen.getByRole('button', { name: 'Share as text' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining('Friday Rummy\nRound 2 in progress'),
     );
@@ -129,7 +133,7 @@ describe('the share window for a game', () => {
   it('opens the phone share sheet when there is one', async () => {
     Object.defineProperty(navigator, 'share', { value: share, configurable: true });
     const { user } = setup(finished());
-    await user.click(screen.getByRole('button', { name: 'Share as text' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(share).toHaveBeenCalledWith({
       title: 'Friday Rummy scores',
       text: expect.stringContaining('Asha won'),
@@ -151,7 +155,7 @@ describe('the share window for a game', () => {
   it('says so when it can neither share nor copy', async () => {
     clipboard.writeText.mockRejectedValue(new Error('blocked'));
     const { user } = setup(open());
-    await user.click(screen.getByRole('button', { name: 'Share as text' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't share or copy");
   });
 
@@ -174,7 +178,7 @@ describe('the share window for a game', () => {
     const { user } = setup(open(), 'abcdefghijklmnopqrstuv');
     expect(screen.getByTestId('view-link')).toHaveTextContent('/view/abcdefghijklmnopqrstuv');
     expect(screen.queryByRole('button', { name: 'Create a live view link' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Share as text' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(clipboard.writeText).toHaveBeenCalledWith(
       expect.stringContaining(
         'Watch live: ' + window.location.origin + '/view/abcdefghijklmnopqrstuv',
@@ -248,15 +252,15 @@ describe('sharing the scores as a picture', () => {
     renderGameCard.mockReturnValue(new Promise<Blob>((r) => (finish = r)));
     setup();
     expect(screen.getByRole('status')).toHaveTextContent('Making the picture');
-    expect(screen.getByRole('button', { name: 'Share picture' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Share' })).toBeDisabled();
     await act(async () => finish(new Blob(['x'])));
-    expect(await screen.findByRole('button', { name: 'Share picture' })).toBeEnabled();
+    expect(await screen.findByRole('button', { name: 'Share' })).toBeEnabled();
   });
 
   it('sends the picture through the share sheet, named after the league', async () => {
     const user = setup();
     await screen.findByRole('img');
-    await user.click(screen.getByRole('button', { name: 'Share picture' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(shareImage).toHaveBeenCalledWith(
       expect.any(Blob),
       'friday-rummy-scores.png',
@@ -269,7 +273,7 @@ describe('sharing the scores as a picture', () => {
     shareImage.mockResolvedValue('saved');
     const user = setup();
     await screen.findByRole('img');
-    await user.click(screen.getByRole('button', { name: 'Share picture' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Saved to your device. Attach it to your chat.',
     );
@@ -279,7 +283,7 @@ describe('sharing the scores as a picture', () => {
     shareImage.mockResolvedValue('cancelled');
     const user = setup();
     await screen.findByRole('img');
-    await user.click(screen.getByRole('button', { name: 'Share picture' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(screen.queryByText('Shared')).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -288,26 +292,29 @@ describe('sharing the scores as a picture', () => {
     shareImage.mockRejectedValueOnce(new Error('boom')).mockResolvedValue('shared');
     const user = setup();
     await screen.findByRole('img');
-    await user.click(screen.getByRole('button', { name: 'Share picture' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't share the picture");
-    await user.click(screen.getByRole('button', { name: 'Share picture' }));
+    await user.click(screen.getByRole('button', { name: 'Share' }));
     expect(await screen.findByText('Shared')).toBeInTheDocument();
   });
 
-  it('falls back to text, as the main button, where the browser cannot draw the picture', async () => {
+  it('shares the scores as text from the same one button where the browser cannot draw the picture', async () => {
     renderGameCard.mockRejectedValue(new Error('no canvas'));
-    setup();
+    const user = setup();
     expect(await screen.findByText(/can't make the picture/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Share picture' })).not.toBeInTheDocument();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Share as text' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Share/ })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Share' }));
+    expect(clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('Asha won\nScores:'));
+    expect(shareImage).not.toHaveBeenCalled();
   });
 
-  it('still offers the text version beside the picture', async () => {
-    const user = setup();
+  it('has just the one Share button, not a picture button and a text button', async () => {
+    setup();
     await screen.findByRole('img');
-    await user.click(screen.getByRole('button', { name: 'Share as text' }));
-    expect(clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('Asha won\nScores:'));
+    expect(screen.getAllByRole('button', { name: /^Share/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Share as text' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Share picture' })).not.toBeInTheDocument();
   });
 
   it('lets go of the picture when the window closes', async () => {

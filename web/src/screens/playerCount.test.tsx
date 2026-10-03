@@ -150,6 +150,7 @@ describe('the list of leagues on the home screen', () => {
       error: null,
     });
     vi.spyOn(hooks, 'usePlayerCounts').mockReturnValue(counts);
+    vi.spyOn(hooks, 'useLeagueActivity').mockReturnValue({});
     render(
       <MemoryRouter>
         <LeaguesScreen />
@@ -181,7 +182,7 @@ describe('the list of leagues on the home screen', () => {
     leagues = [{ id: 'L1', doc: doc('Friday Rummy', 4) }];
     counts = {};
     renderHome();
-    expect(row('Friday Rummy')).toHaveTextContent(/^Friday Rummy$/);
+    expect(row('Friday Rummy')).toHaveTextContent(/^Friday Rummy›$/);
     expect(screen.queryByText(/\d+ (player|member)/)).not.toBeInTheDocument();
   });
 });

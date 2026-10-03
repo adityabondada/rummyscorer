@@ -23,6 +23,7 @@ vi.mock('../api', () => ({
 vi.mock('../hooks', () => ({
   useMyLeagues: () => ({ loading: false, value: [] }),
   usePlayerCounts: () => ({}),
+  useLeagueActivity: () => ({}),
 }));
 
 import { LeaguesScreen } from './LeaguesScreen';
@@ -67,6 +68,7 @@ describe('the home screen', () => {
 
   it('creates a league under the name from the profile', async () => {
     const u = setup();
+    await u.click(screen.getByRole('button', { name: 'New league' }));
     await u.type(screen.getByLabelText('League name'), 'Friday Rummy');
     await u.click(screen.getByRole('button', { name: 'Create league' }));
     expect(createLeague).toHaveBeenCalledWith({ name: 'Friday Rummy', displayName: 'Asha' });
@@ -75,6 +77,7 @@ describe('the home screen', () => {
 
   it('joins a league under the name from the profile', async () => {
     const u = setup();
+    await u.click(screen.getByRole('button', { name: 'Join with a code' }));
     await u.type(screen.getByLabelText('Invite code'), 'ABCD2345');
     await u.click(screen.getByRole('button', { name: 'Join league' }));
     expect(joinLeague).toHaveBeenCalledWith({ code: 'ABCD2345', displayName: 'Asha' });
@@ -84,8 +87,11 @@ describe('the home screen', () => {
     user = { uid: 'u1', displayName: null, email: null };
     const u = setup();
     expect(screen.getByRole('status')).toHaveTextContent('Add your name in your profile');
+    await u.click(screen.getByRole('button', { name: 'New league' }));
     await u.type(screen.getByLabelText('League name'), 'Friday Rummy');
     expect(screen.getByRole('button', { name: 'Create league' })).toBeDisabled();
+    await u.click(screen.getByRole('button', { name: 'Close' }));
+    await u.click(screen.getByRole('button', { name: 'Join with a code' }));
     await u.type(screen.getByLabelText('Invite code'), 'ABCD2345');
     expect(screen.getByRole('button', { name: 'Join league' })).toBeDisabled();
     expect(screen.getByRole('link', { name: 'profile' })).toHaveAttribute('href', '/profile');

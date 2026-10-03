@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { GameState } from '@rummy/engine';
 import { errorMessage, shareGame } from '../../api';
 import { copyText, gameShareText, shareOrCopy, viewUrl } from '../../lib/share';
+import { buildGameCard, renderGameCard, shareImage } from '../../lib/shareImage';
 import { Button, ErrorText, Modal } from '../../ui';
 
+type Picture =
+  { status: 'making' } | { status: 'ready'; blob: Blob; url: string } | { status: 'failed' };
+
 /**
- * Two ways to bring the rest of the table in: send the scores to a chat, and a link anyone can open
- * to watch the game without signing in. The link can be turned off at any time.
+ * Two ways to bring the rest of the table in: send the scores to a chat as a picture (or as text),
+ * and a link anyone can open to watch the game without signing in. The link can be turned off at
+ * any time.
  */
 export function ShareModal({
   leagueId,
@@ -14,6 +19,7 @@ export function ShareModal({
   leagueName,
   state,
   names,
+  startedAt,
   shareCode,
   onClose,
 }: {
@@ -22,6 +28,8 @@ export function ShareModal({
   leagueName: string;
   state: GameState;
   names: Record<string, string>;
+  /** When the game was started, for the date on the picture. */
+  startedAt?: number | null;
   /** The game's link while it is switched on. */
   shareCode: string | null | undefined;
   onClose: () => void;
@@ -34,7 +42,56 @@ export function ShareModal({
   const [busy, setBusy] = useState(false);
   const link = code ? viewUrl(code) : null;
 
-  const send = async () => {
+  // The picture is drawn as soon as the window opens, so it can be seen before it is sent.
+  const model = useMemo(
+    () => buildGameCard({ leagueName, state, names, startedAt }),
+    [leagueName, state, names, startedAt],
+  );
+  const [picture, setPicture] = useState<Picture>({ status: 'making' });
+  useEffect(() => {
+    let current = true;
+    let url: string | null = null;
+    setPicture({ status: 'making' });
+    renderGameCard(model).then(
+      (blob) => {
+        if (!current) return;
+        url = URL.createObjectURL(blob);
+        setPicture({ status: 'ready', blob, url });
+      },
+      () => current && setPicture({ status: 'failed' }),
+    );
+    return () => {
+      current = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [model]);
+
+  const sendPicture = async () => {
+    if (picture.status !== 'ready') return;
+    setError('');
+    const slug = leagueName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    try {
+      const result = await shareImage(
+        picture.blob,
+        `${slug || 'rummy'}-scores.png`,
+        `${leagueName} scores`,
+      );
+      setNote(
+        result === 'shared'
+          ? 'Shared'
+          : result === 'saved'
+            ? 'Saved to your device. Attach it to your chat.'
+            : '',
+      );
+    } catch {
+      setError("Couldn't share the picture. Try again.");
+    }
+  };
+
+  const sendText = async () => {
     setError('');
     const text = gameShareText({ leagueName, state, names, url: link });
     const result = await shareOrCopy(`${leagueName} scores`, text);
@@ -75,11 +132,41 @@ export function ShareModal({
           <h3 className="font-medium">Send the scores</h3>
           <p className="text-sm text-slate-600">
             {state.status === 'finished'
-              ? 'Who won, the nets, and who pays whom, ready for your group chat.'
-              : 'The standings so far, ready for your group chat.'}
+              ? 'A picture of who won, the nets, and who pays whom, ready for your group chat.'
+              : 'A picture of the standings so far, ready for your group chat.'}
           </p>
-          <Button className="w-full" onClick={() => void send()}>
-            Share scores
+          {picture.status === 'ready' && (
+            <img
+              src={picture.url}
+              alt={`Picture of the ${state.status === 'finished' ? 'final' : 'current'} scores, as it will be shared`}
+              className="mx-auto max-h-72 rounded-lg ring-1 ring-slate-200"
+            />
+          )}
+          {picture.status === 'making' && (
+            <p role="status" className="text-sm text-slate-500">
+              Making the picture…
+            </p>
+          )}
+          {picture.status === 'failed' && (
+            <p className="text-sm text-slate-600">
+              This browser can't make the picture, so share it as text instead.
+            </p>
+          )}
+          {picture.status !== 'failed' && (
+            <Button
+              className="w-full"
+              disabled={picture.status !== 'ready'}
+              onClick={() => void sendPicture()}
+            >
+              Share picture
+            </Button>
+          )}
+          <Button
+            variant={picture.status === 'failed' ? 'primary' : 'secondary'}
+            className="w-full"
+            onClick={() => void sendText()}
+          >
+            Share as text
           </Button>
         </section>
 

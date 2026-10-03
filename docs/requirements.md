@@ -119,7 +119,7 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 
 ## Sharing and settling up
 
-- **Share scores:** a Share button on a game sends the scores to a chat: who won, the nets and who pays whom when it is over, or the standings so far while it is on. It opens the phone's share sheet where there is one, and copies the text otherwise. Each night on the Games tab has a Share button for the night's nets and payments.
+- **Share scores:** a Share button on a game sends the scores to a chat as a picture: the league and day on a dark header, who won (or the round, for a game still on), each player with their net (or score and race bar), and who pays whom when it is over. The picture is drawn in the browser and shown in the Share window before it is sent. It goes through the phone's share sheet where that can take a file, and is saved to the device otherwise so it can be attached by hand. Share as text is still there, and is the main button where a browser can't draw the picture. Each night on the Games tab has a Share button for the night's nets and payments, as text.
 - **Live view link:** any member can switch on a link to a game. Anyone with it can watch the scoreboard and rounds update without signing in, and can't change anything. Turning it off, or deleting the game, stops the link working. The page checks for new rounds every few seconds while the game is on, much less often once it is over, and keeps the last scores on screen if the connection drops.
 - **Mark paid:** each payment has a Mark paid button, and a night with more than one payment still to make has Mark all paid, which marks them all at once (together, or not at all). Either can be undone per payment.
 

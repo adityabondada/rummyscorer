@@ -416,6 +416,7 @@ export function GameScreen() {
           leagueName={league.name}
           state={state}
           names={names}
+          startedAt={game.createdAt}
           shareCode={game.shareCode}
           onClose={close}
         />

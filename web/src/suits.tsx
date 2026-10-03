@@ -93,12 +93,22 @@ export function SuitSpinner({ size = 22 }: { size?: number }) {
 }
 
 /** A friendly empty screen: the suits, a heading that invites, and one line of explanation. */
-export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
+export function EmptyState({
+  title,
+  children,
+  action,
+}: {
+  title: string;
+  children?: ReactNode;
+  /** What to do next, such as a button. */
+  action?: ReactNode;
+}) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-xl bg-white px-4 py-8 text-center shadow-sm ring-1 ring-slate-200">
       <SuitRow size={22} />
       <h2 className="mt-1 font-semibold text-slate-900">{title}</h2>
       {children && <p className="max-w-xs text-sm text-slate-600">{children}</p>}
+      {action && <div className="mt-2">{action}</div>}
     </div>
   );
 }

@@ -1,12 +1,15 @@
-import { deleteDoc, doc, setDoc } from 'firebase/firestore';
+import { deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { settledKey, settledPath, type SettledDoc } from '@rummy/data';
 import type { Transfer } from '@rummy/engine';
 import { db } from '../firebase';
 import { useGames, useSettled } from '../hooks';
+import { InstallPrompt } from '../InstallPrompt';
+import { pickablePlayers } from '../lib/names';
 import { EmptyState } from '../suits';
 import { nights, type GameRow } from '../lib/night';
+import { nightShareText, shareOrCopy } from '../lib/share';
 import { Badge, Button, Card, ErrorText, Loading, money } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
 import { SettlingUp } from './SettlingUp';
@@ -49,10 +52,12 @@ function GameLink({ game, names }: { game: GameRow; names: Record<string, string
 }
 
 export function GamesTab() {
-  const { leagueId, uid, players, names } = useLeagueContext();
+  const { leagueId, league, uid, players, names } = useLeagueContext();
   const games = useGames(leagueId);
   const settled = useSettled(leagueId);
   const [error, setError] = useState('');
+  // The night whose results were just copied or shared, to say so beside its button.
+  const [shared, setShared] = useState<{ day: string; note: string } | null>(null);
 
   const uidNames = useMemo(
     () =>
@@ -84,6 +89,44 @@ export function GamesTab() {
     }
   };
 
+  const shareNight = async (night: ReturnType<typeof nights>[number]) => {
+    setError('');
+    const text = nightShareText({
+      leagueName: league.name,
+      dayLabel: dayLabel(night.day),
+      finishedGames: night.games.length - night.inProgress,
+      inProgress: night.inProgress,
+      nets: night.nets,
+      transfers: night.transfers,
+      names,
+    });
+    const result = await shareOrCopy(`${league.name}, ${dayLabel(night.day)}`, text);
+    if (result === 'failed') setError("Couldn't share or copy. Try again.");
+    else if (result !== 'cancelled') {
+      setShared({ day: night.day, note: result === 'copied' ? 'Copied' : 'Shared' });
+      setTimeout(() => setShared((now) => (now?.day === night.day ? null : now)), 2500);
+    }
+  };
+
+  /** Marks several payments paid in one write, so either all of them are or none are. */
+  const markAllPaid = async (day: string, ts: Transfer[]) => {
+    setError('');
+    const batch = writeBatch(db);
+    const at = Date.now();
+    for (const t of ts) {
+      const record: SettledDoc = { day, from: t.from, to: t.to, amount: t.amount, by: uid, at };
+      batch.set(
+        doc(db, `${settledPath(leagueId)}/${settledKey(day, t.from, t.to, t.amount)}`),
+        record,
+      );
+    }
+    try {
+      await batch.commit();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not mark those as paid');
+    }
+  };
+
   const undo = async (key: string) => {
     setError('');
     try {
@@ -93,22 +136,70 @@ export function GamesTab() {
     }
   };
 
+  const empty = !games.loading && games.value.length === 0;
+  const enoughPlayers = pickablePlayers(players).length >= 2;
+
   return (
     <>
-      <Link to="new-game" className="block">
-        <Button className="w-full">New game</Button>
-      </Link>
+      <InstallPrompt />
+      {!empty && (
+        <Link to="new-game" className="block">
+          <Button className="w-full">New game</Button>
+        </Link>
+      )}
 
       <ErrorText>{error}</ErrorText>
 
       {games.loading ? (
         <Loading />
-      ) : games.value.length === 0 ? (
-        <EmptyState title="Deal the first game">Add your players, then start a game.</EmptyState>
+      ) : empty ? (
+        enoughPlayers ? (
+          <EmptyState
+            title="Deal the first game"
+            action={
+              <Link to="new-game">
+                <Button>Start your first game</Button>
+              </Link>
+            }
+          >
+            Pick who is playing and the rules, then start scoring.
+          </EmptyState>
+        ) : (
+          <EmptyState
+            title="Add your players first"
+            action={
+              <Link to="players">
+                <Button>Add players</Button>
+              </Link>
+            }
+          >
+            A game needs at least two players. Add the people at your table, or share the invite so
+            they can join.
+          </EmptyState>
+        )
       ) : (
         nights(games.value).map((night) => (
           <Card key={night.day} className="space-y-3">
-            <h2 className="font-semibold">{dayLabel(night.day)}</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold">{dayLabel(night.day)}</h2>
+              {Object.keys(night.nets).length > 0 && (
+                <span className="flex items-center gap-2">
+                  {shared?.day === night.day && (
+                    <span role="status" className="text-xs text-emerald-700">
+                      {shared.note}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    small
+                    aria-label={`Share the results for ${dayLabel(night.day)}`}
+                    onClick={() => void shareNight(night)}
+                  >
+                    Share
+                  </Button>
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               {night.games.map((g) => (
                 <GameLink key={g.id} game={g} names={names} />
@@ -122,6 +213,7 @@ export function GamesTab() {
               uidNames={uidNames}
               inProgress={night.inProgress}
               onMarkPaid={(t) => void markPaid(night.day, t)}
+              onMarkAllPaid={(ts) => void markAllPaid(night.day, ts)}
               onUndo={(key) => void undo(key)}
             />
             {Object.keys(night.nets).length > 0 && (

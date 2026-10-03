@@ -16,6 +16,28 @@ export const joinLeague = callable<
   { leagueId: string; playerId: string }
 >('joinLeagueFn');
 
+/** Switches a game's read-only link on or off. Any member can. */
+export const shareGame = callable<
+  { leagueId: string; gameId: string; enable: boolean },
+  { shareCode: string | null }
+>('shareGameFn');
+
+/** Works with nobody signed in: what a shared game link shows. */
+export const gameView = callable<
+  { code: string },
+  {
+    leagueName: string;
+    names: Record<string, string>;
+    startedAt: number;
+    state: import('@rummy/engine').GameState;
+  }
+>('gameViewFn');
+
+/** Works before signing in: the league an invite link is for. */
+export const inviteInfo = callable<{ code: string }, { leagueName: string; members: number }>(
+  'inviteInfoFn',
+);
+
 export const regenerateInvite = callable<{ leagueId: string }, { inviteCode: string }>(
   'regenerateInviteFn',
 );

@@ -242,5 +242,8 @@ export function parseGame(data: unknown): GameDoc {
     }),
     summary: nullable(d.summary, parseSummary),
     summaryError: nullable(d.summaryError, (v) => str(v, 'summaryError')),
+    ...(d.shareCode === undefined
+      ? {}
+      : { shareCode: nullable(d.shareCode, (v) => str(v, 'shareCode')) }),
   };
 }

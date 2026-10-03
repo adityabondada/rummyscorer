@@ -31,6 +31,7 @@ function setup(over: Partial<React.ComponentProps<typeof SettlingUp>> = {}) {
       uidNames={{ u1: 'Asha' }}
       inProgress={0}
       onMarkPaid={onMarkPaid}
+      onMarkAllPaid={vi.fn()}
       onUndo={onUndo}
       {...over}
     />,
@@ -120,6 +121,7 @@ describe('SettlingUp', () => {
         uidNames={{}}
         inProgress={0}
         onMarkPaid={() => {}}
+        onMarkAllPaid={() => {}}
         onUndo={() => {}}
       />,
     );

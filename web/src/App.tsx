@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useMatch } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { CardBackdrop } from './backdrop';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -13,12 +13,25 @@ import { PlayersTab } from './screens/PlayersTab';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { StatsTab } from './screens/StatsTab';
 import { SignInScreen } from './screens/SignInScreen';
+import { ViewScreen } from './screens/ViewScreen';
 import { Loading } from './ui';
 
-function Routed() {
+export function Routed() {
   const { user, loading } = useAuth();
+  const { pathname } = useLocation();
+  const invite = useMatch('/join/:code')?.params.code;
+  // A shared game link is for anyone, so it never waits on, or asks for, a sign-in.
+  const view = useMatch('/view/:code')?.params.code;
+  if (view) return <ViewScreen code={view} />;
   if (loading) return <Loading />;
-  if (!user) return <SignInScreen />;
+  // Someone arriving from an invite link sees which league it is for before they sign in. The
+  // address stays the same, so after signing in they land on the join page.
+  // Signing in always starts at Your leagues: signing out from Profile, or an old address, must not
+  // bring the next sign-in back to that page. Only an invite link keeps its address.
+  if (!user) {
+    if (!invite && pathname !== '/') return <Navigate to="/" replace />;
+    return <SignInScreen invite={invite} />;
+  }
   return (
     <>
       <CardBackdrop />

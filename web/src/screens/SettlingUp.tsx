@@ -14,6 +14,8 @@ interface Props {
   /** Games still being played that night, which are not in these payments yet. */
   inProgress: number;
   onMarkPaid: (transfer: Transfer) => void;
+  /** Marks every payment in the list as paid in one go. */
+  onMarkAllPaid: (transfers: Transfer[]) => void;
   onUndo: (key: string) => void;
 }
 
@@ -26,6 +28,7 @@ export function SettlingUp({
   uidNames,
   inProgress,
   onMarkPaid,
+  onMarkAllPaid,
   onUndo,
 }: Props) {
   if (transfers.length === 0) return null;
@@ -33,6 +36,7 @@ export function SettlingUp({
   const keyOf = (t: Transfer) => settledKey(day, t.from, t.to, t.amount);
   const paidCount = transfers.filter((t) => settled[keyOf(t)]).length;
   const allPaid = paidCount === transfers.length;
+  const unpaid = transfers.filter((t) => !settled[keyOf(t)]);
 
   return (
     <div className="rounded-lg bg-slate-50 p-3">
@@ -72,6 +76,16 @@ export function SettlingUp({
           );
         })}
       </ul>
+      {unpaid.length > 1 && (
+        <Button
+          variant="secondary"
+          small
+          className="mt-2 w-full"
+          onClick={() => onMarkAllPaid(unpaid)}
+        >
+          Mark all paid ({unpaid.length})
+        </Button>
+      )}
       {inProgress > 0 && (
         <p className="mt-1 text-xs text-slate-500">
           Not counting {inProgress} game{inProgress > 1 ? 's' : ''} still in progress.

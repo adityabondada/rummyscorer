@@ -4,9 +4,10 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { deleteGame } from './games';
-import { createLeague, joinLeague, regenerateInvite, removeMember } from './leagues';
+import { createLeague, inviteInfo, joinLeague, regenerateInvite, removeMember } from './leagues';
 import { mergePlayers, unmergePlayers } from './merge';
 import { recomputeGame, recomputeLeague, splitChanged } from './recompute';
+import { gameView, shareGame } from './share';
 
 initializeApp();
 
@@ -55,6 +56,31 @@ export const joinLeagueFn = onCall(callableOptions, (request) =>
     },
     Date.now(),
   ),
+);
+
+// The one callable that needs no sign-in: an invite page shows the league's name before the person
+// has signed in. See inviteInfo for what it gives away.
+export const inviteInfoFn = onCall(callableOptions, (request) =>
+  inviteInfo(db(), { code: request.data?.code }),
+);
+
+export const shareGameFn = onCall(callableOptions, (request) =>
+  shareGame(
+    db(),
+    callerUid(request),
+    {
+      leagueId: request.data?.leagueId,
+      gameId: request.data?.gameId,
+      enable: request.data?.enable,
+    },
+    Date.now(),
+  ),
+);
+
+// The second callable that needs no sign-in: the read-only view behind a shared game link. See
+// gameView for what it gives away.
+export const gameViewFn = onCall(callableOptions, (request) =>
+  gameView(db(), { code: request.data?.code }),
 );
 
 export const regenerateInviteFn = onCall(callableOptions, (request) =>

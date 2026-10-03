@@ -1,7 +1,9 @@
 import {
   collection,
   doc,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   where,
   type DocumentData,
@@ -29,6 +31,8 @@ import type { GameState } from '@rummy/engine';
 import { EngineError } from '@rummy/engine';
 import { db } from './firebase';
 import { gameState, type PlayerMap, type RoundRow } from './lib/game';
+import type { LeagueActivity } from './lib/leagues';
+import { pickablePlayers } from './lib/names';
 import type { GameRow } from './lib/night';
 
 export interface Loaded<T> {
@@ -102,6 +106,89 @@ export function useMyLeagues(uid: string): Loaded<LeagueRow[]> {
         .sort((a, b) => a.doc.name.localeCompare(b.doc.name)),
     [],
   );
+}
+
+/**
+ * How many players each league has, live: the people who could be picked for a game (not retired,
+ * and guests merged into a member counted once). A league shows no number until it has loaded,
+ * or if it can't be read.
+ */
+export function usePlayerCounts(leagueIds: string[]): Record<string, number> {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const key = [...leagueIds].sort().join(',');
+
+  useEffect(() => {
+    const ids = key === '' ? [] : key.split(',');
+    // Forget leagues that are no longer in the list.
+    setCounts((prev) =>
+      Object.fromEntries(Object.entries(prev).filter(([id]) => ids.includes(id))),
+    );
+    const unsubscribe = ids.map((id) =>
+      onSnapshot(
+        collection(db, playersPath(id)),
+        (snap) => {
+          const players: PlayerMap = Object.fromEntries(
+            parseEach(
+              snap.docs.map((d) => ({ id: d.id, data: d.data() })),
+              parsePlayer,
+            ).map((r) => [r.id, r.data]),
+          );
+          setCounts((prev) => ({ ...prev, [id]: pickablePlayers(players).length }));
+        },
+        () =>
+          setCounts((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== id))),
+      ),
+    );
+    return () => unsubscribe.forEach((stop) => stop());
+  }, [key]);
+
+  return counts;
+}
+
+/**
+ * For each league, whether a game is being played and when the latest began, live. Two small
+ * queries per league (the newest game, and any game still in progress) so a long history is
+ * never read. A league has no entry until both have answered, or if it can't be read.
+ */
+export function useLeagueActivity(leagueIds: string[]): Record<string, LeagueActivity> {
+  const [found, setFound] = useState<Record<string, { live?: boolean; lastAt?: number | null }>>(
+    {},
+  );
+  const key = [...leagueIds].sort().join(',');
+
+  useEffect(() => {
+    const ids = key === '' ? [] : key.split(',');
+    setFound((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => ids.includes(id))));
+    const merge = (id: string, part: { live?: boolean; lastAt?: number | null }) =>
+      setFound((prev) => ({ ...prev, [id]: { ...prev[id], ...part } }));
+    const forget = (id: string) =>
+      setFound((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== id)));
+
+    const stops = ids.flatMap((id) => [
+      onSnapshot(
+        query(collection(db, gamesPath(id)), orderBy('createdAt', 'desc'), limit(1)),
+        (snap) => {
+          const created = snap.docs[0]?.data().createdAt;
+          merge(id, { lastAt: typeof created === 'number' ? created : null });
+        },
+        () => forget(id),
+      ),
+      onSnapshot(
+        query(collection(db, gamesPath(id)), where('status', '==', 'inProgress'), limit(1)),
+        (snap) => merge(id, { live: !snap.empty }),
+        () => forget(id),
+      ),
+    ]);
+    return () => stops.forEach((stop) => stop());
+  }, [key]);
+
+  const ready: Record<string, LeagueActivity> = {};
+  for (const [id, part] of Object.entries(found)) {
+    if (part.live !== undefined && part.lastAt !== undefined) {
+      ready[id] = { live: part.live, lastAt: part.lastAt };
+    }
+  }
+  return ready;
 }
 
 export function useLeague(leagueId: string | null): Loaded<LeagueDoc | null> {

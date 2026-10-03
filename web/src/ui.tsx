@@ -1,6 +1,8 @@
 import {
+  forwardRef,
   useEffect,
   type ButtonHTMLAttributes,
+  type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react';
@@ -20,15 +22,13 @@ const variants: Record<Variant, string> = {
   ghost: 'text-slate-800 hover:bg-slate-100 disabled:text-slate-400',
 };
 
-export function Button({
-  variant = 'primary',
-  small,
-  className,
-  type = 'button',
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; small?: boolean }) {
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; small?: boolean }
+>(function Button({ variant = 'primary', small, className, type = 'button', ...props }, ref) {
   return (
     <button
+      ref={ref}
       type={type}
       className={cx(
         'rounded-lg font-medium transition-colors disabled:cursor-not-allowed',
@@ -39,11 +39,18 @@ export function Button({
       {...props}
     />
   );
-}
+});
 
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
+export function Card({
+  children,
+  className,
+  ...rest
+}: { children: ReactNode; className?: string } & HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cx('rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200', className)}>
+    <section
+      className={cx('rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200', className)}
+      {...rest}
+    >
       {children}
     </section>
   );

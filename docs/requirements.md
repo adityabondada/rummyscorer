@@ -15,7 +15,11 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 
 - Any signed-in user can create a league and becomes its admin.
 - A user can belong to several leagues and switch between them.
+- **Your leagues:** the home screen is a title with a greeting and the profile icon, a count of leagues, and a large card for each league: its name, how many players it has (people who can be picked for a game: not retired, a guest merged into a member counted once) and when it was last played. A league with a game in progress is marked "Game in progress" and outlined, and sorts first, then the most recently played. All of it updates live, and a number shows only once it has loaded. New league and Join with a code are two buttons under the cards that open a small popup each; with no leagues yet they sit in the invitation to start a first one.
 - **Joining:** the admin shares an invite link or short code. Opening it and signing in with Google adds the user as a member.
+- **Invite page:** opening an invite link shows which league it is for and how many people are in it (nothing more) before signing in, and says so plainly when the link is no longer valid. After signing in, the join page uses the name from the profile and only asks for one if there is none. If nobody is waiting to be claimed, the new member goes straight to the league.
+- **First game:** a league with no games points at the next step: Start your first game, or Add players when there are fewer than two.
+- **Install prompt:** a one-time card offers Add to home screen (an Add button where the browser supports it, and Share then Add to Home Screen instructions on iPhone). It is left out once installed or dismissed.
 - **Admin role is minimal:** regenerate the invite (invalidating old links) and remove members. Nothing else is admin-only.
 - **One Players tab for people:** the league has three tabs, Games, Stats and Players. The Players tab lists everyone, members and guests together, with badges (Admin, You, Member, Former member, Guest, Retired). Add player and, for the admin, Invite (link, code, copy, new invite) are buttons at the top that open a popup. Each row has a "…" menu with Rename, Retire or Bring back and, for the admin on another member, Remove from league. A guest row also has Link to a member. Removing a member takes away their access and retires their profile; their games and stats stay, and they show as a former member.
 - **Members** can start and delete games, log and edit rounds, scrap rounds, mark payments as paid, add guest players, and link or unlink guest profiles.
@@ -74,6 +78,9 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 - For everyone else, enter penalty points, or tap Drop or Middle drop to apply the configured points.
 - Each player shows drops remaining (e.g. "1 of 2 left"). At the limit, drop buttons are disabled and actual points must be entered.
 - Drop usage is stored per round, so edits and scraps recalculate it correctly.
+- **Quick entry:** the points boxes open the number keypad, picking the winner puts the cursor in the first box that needs points, and Next or Enter moves along the boxes and then to Save (nothing is saved until Save is pressed). Each player also has one-tap Drop, Middle drop and Max (the game's max penalty, left out when there is no cap).
+- **Preview before saving:** under each player the form shows their new total as their points go in, marks anyone who would go out or finish close to the limit, and says when the round would end the game and who would win.
+- **Undo:** for a minute after a round is saved, an Undo bar takes it back in one tap with no reason to type. It is a scrap with an automatic reason, so it stays in the list struck through like any scrapped round, and it is only offered while that round is still the latest.
 
 **Penalty rounds**
 
@@ -109,6 +116,12 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 - A night summary shows who owes whom, simplified to the fewest transfers.
 - **Payments:** each transfer on a night can be marked paid (and undone) by any member. A mark belongs to that exact payment on that night, so if another game changes the amount, it shows as unpaid again. A night shows "All settled" once every payment is paid and no game that night is still being played.
 - **Deleting a game:** any member can delete a game, after a confirmation. Its rounds and results go with it, it stops counting in stats and in who owes whom, and the league log keeps a note of who deleted it and when.
+
+## Sharing and settling up
+
+- **Share scores:** a Share button on a game sends the scores to a chat as a picture: the league and day on a dark header, who won (or the round, for a game still on), and each player's actual score with a race-to-the-limit bar. What each player won or lost is small, under their name, and who pays whom is at the very bottom in a quieter type, so the scores are what stand out. The picture is drawn in the browser and shown in the Share window before it is sent. It goes through the phone's share sheet where that can take a file, and is saved to the device otherwise so it can be attached by hand. There is one Share button for the scores; it sends the picture, and sends the same scores as text only where a browser can't draw it. Each night on the Games tab has a Share button for the night's nets and payments, as text.
+- **Live view link:** any member can switch on a link to a game. Anyone with it can watch the scoreboard and rounds update without signing in, and can't change anything. Turning it off, or deleting the game, stops the link working. The page checks for new rounds every few seconds while the game is on, much less often once it is over, and keeps the last scores on screen if the connection drops.
+- **Mark paid:** each payment has a Mark paid button, and a night with more than one payment still to make has Mark all paid, which marks them all at once (together, or not at all). Either can be undone per payment.
 
 ## Scrapping rounds
 
@@ -173,6 +186,9 @@ How the numbers are worked out (all from cached game summaries, never from round
 - `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
 - `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
+- `shareGame` (callable): any member switches a game's read-only link on or off. The link is a random code stored in `shares/{code}` (readable by no client) and on the game as `shareCode`.
+- `gameView` (callable, needs no sign-in): the replayed state of a shared game, with the league's name and the players' names, for the page behind the link. It gives away no account ids, nothing about other games, and nothing about the league's other members.
+- `inviteInfo` (callable, needs no sign-in): the league name and member count for an invite code, so the invite page can say what it is for. It gives away nothing else.
 - `recomputeLeague` (callable): any member can ask for every finished game in the league to be recalculated, which fills in numbers added to summaries later (such as rounds won). It leaves games that are already right alone, so it is safe to repeat.
 - `deleteGame` (callable): any member can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
 
@@ -187,7 +203,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.
 
-**Firestore rules.** Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
+**Firestore rules.** Shared game links live in `shares/`, which no client can read or write; only the two share callables touch it. Only league members can read or write a league's data. Clients can add guests, rename or retire players, start games, record a split, and enter, edit, scrap and restore rounds. Every update to a round must append one history entry made by the caller and keep earlier entries unchanged. Everything else (creating leagues, membership, invites, linking and merging, game results, the log) is written by Cloud Functions, which bypass the rules. Rules tests run against the emulator with `npm run test:rules`; the emulator needs Java 21+.
 
 **Repo and CI (GitHub)**
 

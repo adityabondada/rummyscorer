@@ -207,20 +207,20 @@ describe('race to the limit', () => {
   it('shakes a row once when its player goes out, and not on a page that already shows them out', () => {
     vi.useFakeTimers();
     const { rerender } = render(<ScoreBoard state={midGame()} names={names} />);
-    expect(row('Cy')).not.toHaveClass('shake-once');
+    expect(row('Cy')).not.toHaveClass('out-row');
 
     rerender(<ScoreBoard state={cyOut()} names={names} />);
-    expect(row('Cy')).toHaveClass('shake-once');
-    expect(row('Bo')).not.toHaveClass('shake-once');
+    expect(row('Cy')).toHaveClass('out-row');
+    expect(row('Bo')).not.toHaveClass('out-row');
 
     act(() => {
-      vi.advanceTimersByTime(800);
+      vi.advanceTimersByTime(2400);
     });
-    expect(row('Cy')).not.toHaveClass('shake-once');
+    expect(row('Cy')).not.toHaveClass('out-row');
 
     cleanup();
     render(<ScoreBoard state={cyOut()} names={names} />);
-    expect(row('Cy')).not.toHaveClass('shake-once');
+    expect(row('Cy')).not.toHaveClass('out-row');
   });
 
   it('says "At the limit" for a player who is exactly on it', () => {

@@ -70,6 +70,8 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 - Scrapping rounds rolls the dealer back with them.
 - The game screen, the round entry screen and the result list players in the order the line-up was set: first card at the top, the round 1 dealer at the bottom. That order does not change as the deal moves round the table.
 
+**Moments on the score board.** When a round is saved, the race reacts for about two seconds, on every screen that has the game open: a full count (the game's most points in a round, or 80 when there is no cap) slams the score in, flashes and shakes the row and shows a chip; a player who goes out gets an "Out" stamp and their row greys out; a player who rejoins bounces back in, glows green, and a chip mentions the buy-in going in the pot. Only changes seen while the screen is open count, so opening a game replays nothing. With "reduce motion" switched on, none of it plays.
+
 ## Rounds, drops, elimination and rejoin
 
 **Round entry**

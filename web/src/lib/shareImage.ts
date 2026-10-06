@@ -50,7 +50,7 @@ export function wrapLines(text: string, width: number): string[] {
 }
 
 /** How many characters of the story fit across the picture. */
-const STORY_WIDTH = 50;
+const STORY_WIDTH = 56;
 
 const ordinal = (n: number) =>
   `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;

@@ -222,7 +222,7 @@ describe('the story on the picture', () => {
   it('is told for a finished game, in lines that fit across the picture', () => {
     const { story } = card();
     expect(story.length).toBeGreaterThan(0);
-    for (const line of story) expect(line.length).toBeLessThanOrEqual(50 + 12);
+    for (const line of story) expect(line.length).toBeLessThanOrEqual(56);
   });
 
   it('is left out for a game still on, and for a night', () => {

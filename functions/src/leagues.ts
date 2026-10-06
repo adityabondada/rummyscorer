@@ -1,9 +1,11 @@
 import {
   COLLECTIONS,
+  gamesPath,
   leaguePath,
   logPath,
   parseLeague,
   parsePlayer,
+  playerPath,
   playersPath,
   type LeagueDoc,
   type PlayerDoc,
@@ -41,6 +43,7 @@ export async function createLeague(
   const league: LeagueDoc = {
     name,
     adminUid: uid,
+    adminUids: [],
     inviteCode,
     memberUids: [uid],
     createdAt: now,
@@ -149,7 +152,8 @@ export async function regenerateInvite(
 }
 
 /**
- * Removes a member from the league. Admin only, and the admin can't be removed. Their profile
+ * Removes a member from the league. Admin only, and an admin can't be removed: they have to be made
+ * a regular member first, so nobody is cut out by accident. Their profile
  * stays so their games and stats remain; it is retired so it doesn't show up for new games.
  */
 export async function removeMember(
@@ -167,6 +171,12 @@ export async function removeMember(
     if (memberUid === league.adminUid) {
       throw new HttpsError('failed-precondition', 'The admin cannot be removed');
     }
+    if (league.adminUids.includes(memberUid)) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Make them a regular member before removing them',
+      );
+    }
     if (!league.memberUids.includes(memberUid)) {
       throw new HttpsError('not-found', 'That person is not a member of this league');
     }
@@ -178,6 +188,88 @@ export async function removeMember(
     tx.set(
       db.collection(logPath(leagueId)).doc(),
       logEntry('memberRemoved', uid, now, { uid: memberUid }),
+    );
+  });
+}
+
+/**
+ * Makes a member an admin, or a regular member again. Admin only. The person who made the league
+ * is always an admin and can't be changed, which also means a league never ends up with none.
+ */
+export async function setAdmin(
+  db: Firestore,
+  uid: string,
+  args: { leagueId: unknown; memberUid: unknown; admin: unknown },
+  now: number,
+): Promise<void> {
+  const leagueId = stringArg(args.leagueId, 'leagueId', 128);
+  const memberUid = stringArg(args.memberUid, 'memberUid', 128);
+  if (typeof args.admin !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'admin must be true or false');
+  }
+  const admin = args.admin;
+
+  await db.runTransaction(async (tx) => {
+    const league = await readLeague(tx, db, leagueId);
+    requireAdmin(league, uid);
+    if (memberUid === league.adminUid) {
+      throw new HttpsError(
+        'failed-precondition',
+        'The person who made the league is always an admin',
+      );
+    }
+    if (!league.memberUids.includes(memberUid)) {
+      throw new HttpsError('not-found', 'That person is not a member of this league');
+    }
+    tx.update(db.doc(leaguePath(leagueId)), {
+      adminUids: admin ? FieldValue.arrayUnion(memberUid) : FieldValue.arrayRemove(memberUid),
+    });
+    tx.set(
+      db.collection(logPath(leagueId)).doc(),
+      logEntry('adminChanged', uid, now, { uid: memberUid, admin }),
+    );
+  });
+}
+
+/**
+ * Removes a guest from the league for good. Admin only. It only works for a guest who has never
+ * been in a game, since a game's results can't lose a player; anyone else is retired instead.
+ * Members are removed with removeMember, and a guest that others were merged into stays too.
+ */
+export async function removePlayer(
+  db: Firestore,
+  uid: string,
+  args: { leagueId: unknown; playerId: unknown },
+  now: number,
+): Promise<void> {
+  const leagueId = stringArg(args.leagueId, 'leagueId', 128);
+  const playerId = stringArg(args.playerId, 'playerId', 128);
+
+  const ref = db.doc(playerPath(leagueId, playerId));
+  await db.runTransaction(async (tx) => {
+    requireAdmin(await readLeague(tx, db, leagueId), uid);
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError('not-found', 'That player does not exist');
+    const found = parsePlayer(snap.data());
+    if (found.linkedUid !== null) {
+      throw new HttpsError('failed-precondition', 'Members are removed from the league instead');
+    }
+    const played = await tx.get(
+      db.collection(gamesPath(leagueId)).where('seatOrder', 'array-contains', playerId).limit(1),
+    );
+    const linked = await tx.get(
+      db.collection(playersPath(leagueId)).where('mergedInto', '==', playerId).limit(1),
+    );
+    if (!played.empty || !linked.empty) {
+      throw new HttpsError(
+        'failed-precondition',
+        'They are in games, so they cannot be removed. Retire them instead.',
+      );
+    }
+    tx.delete(ref);
+    tx.set(
+      db.collection(logPath(leagueId)).doc(),
+      logEntry('playerRemoved', uid, now, { name: found.name }),
     );
   });
 }

@@ -8,6 +8,7 @@ import {
   makeResolveId,
   newRoundDoc,
   parseGame,
+  isLeagueAdmin,
   parseLeague,
   parsePlayer,
   parseRound,
@@ -53,11 +54,32 @@ describe('parsing stored documents', () => {
     const league = {
       name: 'Fri',
       adminUid: 'u1',
+      adminUids: ['u2'],
+      inviteCode: 'ABC123',
+      memberUids: ['u1', 'u2'],
+      createdAt: 5,
+    };
+    expect(parseLeague(league)).toEqual(league);
+  });
+
+  it('reads a league from before co-admins as having none', () => {
+    const old = {
+      name: 'Fri',
+      adminUid: 'u1',
       inviteCode: 'ABC123',
       memberUids: ['u1'],
       createdAt: 5,
     };
-    expect(parseLeague(league)).toEqual(league);
+    expect(parseLeague(old).adminUids).toEqual([]);
+  });
+
+  it('knows who is an admin: the owner, or a member who was promoted', () => {
+    const league = { adminUid: 'u1', adminUids: ['u2', 'u9'], memberUids: ['u1', 'u2', 'u3'] };
+    expect(isLeagueAdmin(league, 'u1')).toBe(true);
+    expect(isLeagueAdmin(league, 'u2')).toBe(true);
+    expect(isLeagueAdmin(league, 'u3')).toBe(false);
+    // Promoted once, but no longer in the league.
+    expect(isLeagueAdmin(league, 'u9')).toBe(false);
   });
 
   it('reads a guest and a linked player', () => {

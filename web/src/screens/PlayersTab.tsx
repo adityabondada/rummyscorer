@@ -1,8 +1,17 @@
 import { addDoc, collection, doc, updateDoc } from 'firebase/firestore';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { playerPath, playersPath, type PlayerDoc } from '@rummy/data';
-import { errorMessage, mergePlayers, regenerateInvite, removeMember, unmergePlayers } from '../api';
+import { isLeagueAdmin, playerPath, playersPath, type PlayerDoc } from '@rummy/data';
+import {
+  errorMessage,
+  mergePlayers,
+  regenerateInvite,
+  removeMember,
+  removePlayer,
+  setAdmin,
+  unmergePlayers,
+} from '../api';
 import { db } from '../firebase';
+import { duplicateMessage } from '../lib/names';
 import { shareOrCopy } from '../lib/share';
 import { Badge, Button, ErrorText, Field, Modal } from '../ui';
 import { useLeagueContext } from './LeagueLayout';
@@ -95,6 +104,11 @@ export function PlayersTab() {
 
   const addGuest = (e: FormEvent) => {
     e.preventDefault();
+    const taken = duplicateMessage(players, name);
+    if (taken) {
+      setError(taken);
+      return;
+    }
     const guest: PlayerDoc = {
       name: name.trim(),
       linkedUid: null,
@@ -161,7 +175,11 @@ export function PlayersTab() {
         {current.map(([id, p]) => {
           const member = isCurrentMember(p);
           const former = p.linkedUid !== null && !member;
-          const canRemove = isAdmin && member && p.linkedUid !== league.adminUid;
+          const isOwner = p.linkedUid === league.adminUid;
+          const memberIsAdmin =
+            member && p.linkedUid !== null && isLeagueAdmin(league, p.linkedUid);
+          const canRemove = isAdmin && member && !memberIsAdmin;
+          const canSetAdmin = isAdmin && member && !isOwner;
           const actions = [
             { label: 'Rename', onSelect: () => setRenaming({ id, name: p.name }) },
             {
@@ -171,6 +189,34 @@ export function PlayersTab() {
                   updateDoc(doc(db, playerPath(leagueId, id)), { retired: !p.retired }),
                 ),
             },
+            ...(canSetAdmin
+              ? [
+                  {
+                    label: memberIsAdmin ? 'Remove as admin' : 'Make admin',
+                    onSelect: () =>
+                      void run(() =>
+                        setAdmin({ leagueId, memberUid: p.linkedUid!, admin: !memberIsAdmin }),
+                      ),
+                  },
+                ]
+              : []),
+            ...(isAdmin && !p.linkedUid
+              ? [
+                  {
+                    label: 'Remove from league',
+                    danger: true,
+                    onSelect: () => {
+                      if (
+                        window.confirm(
+                          `Remove ${p.name} from the league? This only works if they have never played a game. Otherwise retire them.`,
+                        )
+                      ) {
+                        void run(() => removePlayer({ leagueId, playerId: id }));
+                      }
+                    },
+                  },
+                ]
+              : []),
             ...(canRemove
               ? [
                   {
@@ -199,7 +245,7 @@ export function PlayersTab() {
                   {member && <Badge tone="green">Member</Badge>}
                   {former && <Badge>Former member</Badge>}
                   {!p.linkedUid && <Badge>Guest</Badge>}
-                  {p.linkedUid === league.adminUid && member && <Badge tone="green">Admin</Badge>}
+                  {memberIsAdmin && <Badge tone="green">Admin</Badge>}
                   {p.linkedUid === uid && <Badge>You</Badge>}
                   {p.retired && <Badge tone="amber">Retired</Badge>}
                 </span>
@@ -248,6 +294,7 @@ export function PlayersTab() {
               maxLength={40}
               autoFocus
             />
+            <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={!name.trim()}>
               Add player
             </Button>
@@ -306,6 +353,11 @@ export function PlayersTab() {
             className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
+              const taken = duplicateMessage(players, renaming.name, renaming.id);
+              if (taken) {
+                setError(taken);
+                return;
+              }
               void run(async () => {
                 await updateDoc(doc(db, playerPath(leagueId, renaming.id)), {
                   name: renaming.name.trim(),
@@ -321,6 +373,7 @@ export function PlayersTab() {
               maxLength={40}
               autoFocus
             />
+            <ErrorText>{error}</ErrorText>
             <Button type="submit" disabled={!renaming.name.trim()}>
               Save
             </Button>

@@ -50,7 +50,7 @@ type Dialog =
 export function GameScreen() {
   const { gameId = '' } = useParams();
   const navigate = useNavigate();
-  const { leagueId, league, uid, players, names } = useLeagueContext();
+  const { leagueId, league, uid, isAdmin, players, names } = useLeagueContext();
   const live = useLiveGame(leagueId, gameId, players);
   const { game, rows, state } = live;
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -199,14 +199,16 @@ export function GameScreen() {
           <Button variant="secondary" small onClick={() => setDialog({ kind: 'share' })}>
             Share
           </Button>
-          <Button
-            variant="danger"
-            small
-            aria-label="Delete this game"
-            onClick={() => setDialog({ kind: 'delete' })}
-          >
-            Delete
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="danger"
+              small
+              aria-label="Delete this game"
+              onClick={() => setDialog({ kind: 'delete' })}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       }
     >

@@ -128,6 +128,7 @@ describe('what each league is up to', () => {
 const doc = (name: string): LeagueDoc => ({
   name,
   adminUid: 'u1',
+  adminUids: [],
   inviteCode: 'ABCD2345',
   memberUids: ['u1'],
   createdAt: 1,

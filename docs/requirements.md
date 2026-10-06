@@ -20,15 +20,15 @@ Everything lives inside a league: players, games, rounds, stats and trends.
 - **Invite page:** opening an invite link shows which league it is for and how many people are in it (nothing more) before signing in, and says so plainly when the link is no longer valid. After signing in, the join page uses the name from the profile and only asks for one if there is none. If nobody is waiting to be claimed, the new member goes straight to the league.
 - **First game:** a league with no games points at the next step: Start your first game, or Add players when there are fewer than two.
 - **Install prompt:** a one-time card offers Add to home screen (an Add button where the browser supports it, and Share then Add to Home Screen instructions on iPhone). It is left out once installed or dismissed.
-- **Admin role is minimal:** replace the invite (invalidating old links) and remove members. Nothing else is admin-only. Any member can invite people: the invite link and code are on the Players tab for everyone.
-- **One Players tab for people:** the league has three tabs, Games, Stats and Players. The Players tab lists everyone, members and guests together, with badges (Admin, You, Member, Former member, Guest, Retired). Add player and Invite (the link and the code, a Share invite button that opens the phone's share sheet and a Copy link button, for any member, plus New invite for the admin) are buttons at the top that open a popup. Each row has a "…" menu with Rename, Retire or Bring back and, for the admin on another member, Remove from league. A guest row also has Link to a member. Removing a member takes away their access and retires their profile; their games and stats stay, and they show as a former member.
-- **Members** can start and delete games, log and edit rounds, scrap rounds, mark payments as paid, add guest players, and link or unlink guest profiles.
+- **Admins:** the person who made the league is its admin and can make other members admins too (Make admin on their row, Remove as admin to undo). The owner always stays an admin. Admins replace the invite (invalidating old links), remove members and guests, delete games and make other admins. An admin has to be made a regular member before they can be removed. Nothing else is admin-only. Any member can invite people: the invite link and code are on the Players tab for everyone.
+- **One Players tab for people:** the league has three tabs, Games, Stats and Players. The Players tab lists everyone, members and guests together, with badges (Admin, You, Member, Former member, Guest, Retired). Add player and Invite (the link and the code, a Share invite button that opens the phone's share sheet and a Copy link button, for any member, plus New invite for the admin) are buttons at the top that open a popup. Each row has a "…" menu with Rename, Retire or Bring back and, for an admin, Make admin or Remove as admin on a member, and Remove from league (a member who isn't an admin, or a guest who has never played a game). A guest row also has Link to a member. Removing a member takes away their access and retires their profile; their games and stats stay, and they show as a former member.
+- **Members** can start games, log and edit rounds, scrap rounds, mark payments as paid, add guest players, and link or unlink guest profiles.
 - Firestore security rules ensure only league members can read or write that league's data.
 
 ## Players, guests and merging
 
 - **Guest players:** any member can add a player by name. Guests play, score, win and settle like anyone else, but can't log in.
-- Players can be renamed or retired (hidden from new games, kept in history and stats).
+- Players can be renamed or retired (hidden from new games, kept in history and stats). A guest who has never been in a game can also be removed for good; one who has played can only be retired. A name can't be used twice in a league, ignoring case and extra spaces, whether adding or renaming; a retired player with that name is suggested to be brought back instead. (Checked on the screen only: someone joining under a name a guest already has is merged by hand, as before.)
 - **Claim on join:** a new member sees unclaimed guest profiles and can pick "That's me". The merge happens immediately, with no approval step.
 - **Link later:** any member can link a guest profile to a member, or undo a wrong merge.
 - **Carry-over:** a merge moves all games, rounds, drops, rejoins, wins and money to the member profile; stats recalculate. Round data is never rewritten: the guest profile is marked `mergedInto` the member profile, and readers resolve ids through that link (see Technical design).
@@ -115,7 +115,7 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 - **Settlement:** each player's net for the game is pot share won minus buy-ins paid (including rejoins).
 - A night summary shows who owes whom, simplified to the fewest transfers.
 - **Payments:** each transfer on a night can be marked paid (and undone) by any member. A mark belongs to that exact payment on that night, so if another game changes the amount, it shows as unpaid again. A night shows "All settled" once every payment is paid and no game that night is still being played.
-- **Deleting a game:** any member can delete a game, after a confirmation. Its rounds and results go with it, it stops counting in stats and in who owes whom, and the league log keeps a note of who deleted it and when.
+- **Deleting a game:** only an admin can delete a game, after a confirmation. Its rounds and results go with it, it stops counting in stats and in who owes whom, and the league log keeps a note of who deleted it and when.
 
 ## Sharing and settling up
 
@@ -185,18 +185,18 @@ How the numbers are worked out (all from cached game summaries, never from round
 - `joinLeague` (callable): validates an invite code and adds the caller as a member with a profile of their own (or brings back the one they had before being removed). Joining twice is harmless.
 - `mergePlayers` / `unmergePlayers` (callable): link a guest profile (a player a member added by hand) to a member's own profile, or undo it. A merge only ever goes from a guest to a member's profile; two member profiles are never merged. It sets or clears `mergedInto` on the guest in one write, after the same-game guard (blocked if the guest and the member, or a guest already merged into them, played in the same game); logs to league history; then recomputes the summaries of the games the guest played. Rounds are never rewritten, so unmerge is a clean reversal.
 - `onRoundWrite` (Firestore trigger): replays the game with `engine` and updates the game's `status`, `summary` and `summaryError`. It resolves `mergedInto` ids before writing, so summaries (and therefore all stats) only ever contain resolved member ids. It writes to the game doc, never to rounds, to avoid trigger loops. A second trigger on the game doc recomputes the summary when `split` changes, and skips writes that only touch the function-written fields.
-- `removeMember`, `regenerateInvite` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay.
+- `removeMember`, `regenerateInvite`, `setAdmin`, `removePlayer` (callable): admin-only actions. Removing a member keeps their profile, retired, so their games and stats stay. `setAdmin` adds or removes a member from the league's `adminUids`, never the owner. `removePlayer` deletes a guest who is in no game and has nobody merged into them.
 - `shareGame` (callable): any member switches a game's read-only link on or off. The link is a random code stored in `shares/{code}` (readable by no client) and on the game as `shareCode`.
 - `gameView` (callable, needs no sign-in): the replayed state of a shared game, with the league's name and the players' names, for the page behind the link. It gives away no account ids, nothing about other games, and nothing about the league's other members.
 - `inviteInfo` (callable, needs no sign-in): the league name and member count for an invite code, so the invite page can say what it is for. It gives away nothing else.
 - `recomputeLeague` (callable): any member can ask for every finished game in the league to be recalculated, which fills in numbers added to summaries later (such as rounds won). It leaves games that are already right alone, so it is safe to repeat.
-- `deleteGame` (callable): any member can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
+- `deleteGame` (callable): an admin can delete a game and all of its rounds, and a log entry is written. It is a function because clients cannot delete the rounds subcollection.
 
 Everything else (round entry, scrapping, live game view) runs client-side.
 
 **Firestore data model**
 
-- `leagues/{leagueId}` — name, adminUid, inviteCode, memberUids, createdAt.
+- `leagues/{leagueId}` — name, adminUid (the owner), adminUids (other admins, absent on older leagues), inviteCode, memberUids, createdAt.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
 - `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId (null in a penalty round), penalty (nullable: player, points, reason; absent on rounds saved before penalty rounds existed), entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.

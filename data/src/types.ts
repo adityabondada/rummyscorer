@@ -16,7 +16,10 @@ import type {
 
 export interface LeagueDoc {
   name: string;
+  /** The person who made the league. Always an admin, and can't be removed or demoted. */
   adminUid: string;
+  /** Members the admin made admins too. Absent on leagues from before this existed. */
+  adminUids: string[];
   inviteCode: string;
   memberUids: string[];
   createdAt: number;
@@ -107,6 +110,8 @@ export interface RoundDoc extends RoundSnapshot {
 export type LogType =
   | 'memberJoined'
   | 'memberRemoved'
+  | 'adminChanged'
+  | 'playerRemoved'
   | 'inviteRegenerated'
   | 'playerMerged'
   | 'playerUnmerged'

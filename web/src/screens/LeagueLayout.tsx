@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom';
-import type { LeagueDoc } from '@rummy/data';
+import { isLeagueAdmin, type LeagueDoc } from '@rummy/data';
 import { useUser } from '../auth';
 import { useLeague, usePlayers } from '../hooks';
 import type { PlayerMap } from '../lib/game';
@@ -48,7 +48,7 @@ export function LeagueLayout() {
     leagueId,
     league: league.value,
     uid,
-    isAdmin: league.value.adminUid === uid,
+    isAdmin: isLeagueAdmin(league.value, uid),
     players: players.value,
     names: playerNames(players.value),
     myPlayerId,

@@ -1,4 +1,5 @@
 import {
+  isLeagueAdmin,
   leaguePath,
   parseLeague,
   type LeagueDoc,
@@ -25,8 +26,8 @@ export function requireMember(league: LeagueDoc, uid: string): void {
 }
 
 export function requireAdmin(league: LeagueDoc, uid: string): void {
-  if (league.adminUid !== uid) {
-    throw new HttpsError('permission-denied', 'Only the league admin can do this');
+  if (!isLeagueAdmin(league, uid)) {
+    throw new HttpsError('permission-denied', 'Only a league admin can do this');
   }
 }
 

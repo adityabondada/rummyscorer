@@ -1,8 +1,16 @@
 import { logPath, parseLeague, parsePlayer, playersPath, leaguePath } from '@rummy/data';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createLeague, inviteInfo, joinLeague, regenerateInvite, removeMember } from './leagues';
+import {
+  createLeague,
+  inviteInfo,
+  joinLeague,
+  regenerateInvite,
+  removeMember,
+  removePlayer,
+  setAdmin,
+} from './leagues';
 import { CODE_LENGTH } from './inviteCode';
-import { caught, clearDb, NOW, readPlayer, seedLeague, testDb } from './testing';
+import { addGame, addGuest, caught, clearDb, NOW, readPlayer, seedLeague, testDb } from './testing';
 
 const db = testDb();
 beforeEach(clearDb);
@@ -22,6 +30,7 @@ describe('createLeague', () => {
     expect(await readLeague(leagueId)).toEqual({
       name: 'Friday Rummy',
       adminUid: 'u1',
+      adminUids: [],
       inviteCode,
       memberUids: ['u1'],
       createdAt: NOW,
@@ -215,5 +224,139 @@ describe('removeMember', () => {
     const { leagueId } = await seedLeague(db);
     const err = await caught(() => removeMember(db, 'admin', { leagueId, memberUid: 'zed' }, NOW));
     expect(err.code).toBe('not-found');
+  });
+});
+
+describe('setAdmin', () => {
+  it('makes a member an admin, who can then do what an admin can, and logs it', async () => {
+    const { leagueId } = await seedLeague(db, ['u2', 'u3']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+
+    expect((await readLeague(leagueId)).adminUids).toEqual(['u2']);
+    await expect(regenerateInvite(db, 'u2', { leagueId }, NOW)).resolves.toBeDefined();
+    expect(await logTypes(leagueId)).toContain('adminChanged');
+  });
+
+  it('lets a new admin make others admins too', async () => {
+    const { leagueId } = await seedLeague(db, ['u2', 'u3']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await setAdmin(db, 'u2', { leagueId, memberUid: 'u3', admin: true }, NOW);
+    expect((await readLeague(leagueId)).adminUids.sort()).toEqual(['u2', 'u3']);
+  });
+
+  it('takes it away again, and promoting twice changes nothing', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    expect((await readLeague(leagueId)).adminUids).toEqual(['u2']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: false }, NOW);
+    expect((await readLeague(leagueId)).adminUids).toEqual([]);
+    const err = await caught(() => regenerateInvite(db, 'u2', { leagueId }, NOW));
+    expect(err.code).toBe('permission-denied');
+  });
+
+  it('is for admins only', async () => {
+    const { leagueId } = await seedLeague(db, ['u2', 'u3']);
+    const err = await caught(() =>
+      setAdmin(db, 'u2', { leagueId, memberUid: 'u3', admin: true }, NOW),
+    );
+    expect(err.code).toBe('permission-denied');
+  });
+
+  it('never changes the person who made the league', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    const err = await caught(() =>
+      setAdmin(db, 'u2', { leagueId, memberUid: 'admin', admin: false }, NOW),
+    );
+    expect(err.code).toBe('failed-precondition');
+  });
+
+  it('needs a member, and a true or false', async () => {
+    const { leagueId } = await seedLeague(db);
+    const none = await caught(() =>
+      setAdmin(db, 'admin', { leagueId, memberUid: 'zed', admin: true }, NOW),
+    );
+    expect(none.code).toBe('not-found');
+    const bad = await caught(() =>
+      setAdmin(db, 'admin', { leagueId, memberUid: 'zed', admin: 'yes' }, NOW),
+    );
+    expect(bad.code).toBe('invalid-argument');
+  });
+
+  it('stops counting someone who is no longer a member', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: false }, NOW);
+    await removeMember(db, 'admin', { leagueId, memberUid: 'u2' }, NOW);
+    const err = await caught(() => regenerateInvite(db, 'u2', { leagueId }, NOW));
+    expect(err.code).toBe('permission-denied');
+  });
+});
+
+describe('removeMember and admins', () => {
+  it('can be done by an admin who is not the owner', async () => {
+    const { leagueId } = await seedLeague(db, ['u2', 'u3']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await removeMember(db, 'u2', { leagueId, memberUid: 'u3' }, NOW);
+    expect((await readLeague(leagueId)).memberUids).toEqual(['admin', 'u2']);
+  });
+
+  it('refuses to remove an admin until they are made a regular member', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    const err = await caught(() => removeMember(db, 'admin', { leagueId, memberUid: 'u2' }, NOW));
+    expect(err.code).toBe('failed-precondition');
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: false }, NOW);
+    await removeMember(db, 'admin', { leagueId, memberUid: 'u2' }, NOW);
+    expect((await readLeague(leagueId)).memberUids).toEqual(['admin']);
+  });
+});
+
+describe('removePlayer', () => {
+  it('removes a guest who was never in a game, and logs it', async () => {
+    const { leagueId } = await seedLeague(db);
+    const guest = await addGuest(db, leagueId, 'Eli');
+    await removePlayer(db, 'admin', { leagueId, playerId: guest }, NOW);
+
+    expect((await db.doc(`leagues/${leagueId}/players/${guest}`).get()).exists).toBe(false);
+    expect(await logTypes(leagueId)).toContain('playerRemoved');
+  });
+
+  it('keeps a guest who has played, so the games still add up', async () => {
+    const { leagueId, profiles } = await seedLeague(db);
+    const guest = await addGuest(db, leagueId, 'Eli');
+    await addGame(db, leagueId, [profiles.admin!, guest]);
+    const err = await caught(() => removePlayer(db, 'admin', { leagueId, playerId: guest }, NOW));
+    expect(err.code).toBe('failed-precondition');
+    expect((await db.doc(`leagues/${leagueId}/players/${guest}`).get()).exists).toBe(true);
+  });
+
+  it('keeps a guest that someone was merged into', async () => {
+    const { leagueId } = await seedLeague(db);
+    const guest = await addGuest(db, leagueId, 'Eli');
+    const other = await addGuest(db, leagueId, 'Eli (old)');
+    await db.doc(`leagues/${leagueId}/players/${other}`).update({ mergedInto: guest });
+    const err = await caught(() => removePlayer(db, 'admin', { leagueId, playerId: guest }, NOW));
+    expect(err.code).toBe('failed-precondition');
+  });
+
+  it('is not for members, who are removed from the league instead', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2']);
+    const err = await caught(() =>
+      removePlayer(db, 'admin', { leagueId, playerId: profiles.u2! }, NOW),
+    );
+    expect(err.code).toBe('failed-precondition');
+  });
+
+  it('is for admins only, and needs a player that exists', async () => {
+    const { leagueId } = await seedLeague(db, ['u2']);
+    const guest = await addGuest(db, leagueId, 'Eli');
+    const denied = await caught(() => removePlayer(db, 'u2', { leagueId, playerId: guest }, NOW));
+    expect(denied.code).toBe('permission-denied');
+    const missing = await caught(() =>
+      removePlayer(db, 'admin', { leagueId, playerId: 'nope' }, NOW),
+    );
+    expect(missing.code).toBe('not-found');
   });
 });

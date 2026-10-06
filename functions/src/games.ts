@@ -1,11 +1,11 @@
 import { gamePath, logPath, roundsPath } from '@rummy/data';
 import type { Firestore } from 'firebase-admin/firestore';
 import { HttpsError } from 'firebase-functions/v2/https';
-import { logEntry, readLeague, requireMember, stringArg } from './access';
+import { logEntry, readLeague, requireAdmin, stringArg } from './access';
 import { removeShare } from './share';
 
 /**
- * Deletes a game and all of its rounds. Any member can do it. Stats and the night summary are built
+ * Deletes a game and all of its rounds. Admins only. Stats and the night summary are built
  * from the games themselves, so the game stops counting everywhere at once. A log entry records that
  * it happened, since the game itself is gone for good.
  *
@@ -21,7 +21,7 @@ export async function deleteGame(
   const leagueId = stringArg(args.leagueId, 'leagueId', 128);
   const gameId = stringArg(args.gameId, 'gameId', 128);
 
-  await db.runTransaction(async (tx) => requireMember(await readLeague(tx, db, leagueId), uid));
+  await db.runTransaction(async (tx) => requireAdmin(await readLeague(tx, db, leagueId), uid));
 
   const gameRef = db.doc(gamePath(leagueId, gameId));
   const game = await gameRef.get();

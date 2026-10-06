@@ -102,6 +102,8 @@ export interface RoundRecord {
   entries: Record<PlayerId, RoundEntry>;
   eliminated: PlayerId[];
   rejoined: PlayerId[];
+  /** Every player's score once this round and its rejoins were applied, for telling the story. */
+  totals: Record<PlayerId, number>;
 }
 
 export type GameOutcome = 'outright' | 'split';

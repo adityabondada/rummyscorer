@@ -9,6 +9,7 @@ import {
   drawGameCard,
   renderGameCard,
   shareImage,
+  wrapLines,
   type CardModel,
   type Ctx,
 } from './shareImage';
@@ -211,6 +212,68 @@ describe('drawing the picture', () => {
     const shown = texts.find((t) => t.startsWith('AAAA'))!;
     expect(shown.endsWith('…')).toBe(true);
     expect(shown.length).toBeLessThan(long.length);
+  });
+});
+
+describe('the story on the picture', () => {
+  const card = () =>
+    buildGameCard({ leagueName: 'Friday Rummy', state: finished(), names, startedAt: when });
+
+  it('is told for a finished game, in lines that fit across the picture', () => {
+    const { story } = card();
+    expect(story.length).toBeGreaterThan(0);
+    for (const line of story) expect(line.length).toBeLessThanOrEqual(50 + 12);
+  });
+
+  it('is left out for a game still on, and for a night', () => {
+    expect(
+      buildGameCard({ leagueName: 'F', state: inProgress(), names, startedAt: when }).story,
+    ).toEqual([]);
+  });
+
+  it('is drawn under the scores and above who pays whom, with a heading', () => {
+    const { ctx, texts } = recorder();
+    const m = card();
+    drawGameCard(ctx, m);
+    expect(texts).toContain('How it went');
+    for (const line of m.story) expect(texts).toContain(line);
+    expect(texts.indexOf('120')).toBeLessThan(texts.indexOf('How it went'));
+    expect(texts.indexOf('How it went')).toBeLessThan(texts.indexOf('Settling up'));
+  });
+
+  it('makes the picture taller, and still ends at the bottom edge', () => {
+    const m = card();
+    expect(cardHeight(m)).toBeGreaterThan(cardHeight({ ...m, story: [] }));
+    const { ctx, calls } = recorder();
+    drawGameCard(ctx, m);
+    const last = calls.filter((c) => c.startsWith('rect')).at(-1)!;
+    const [, y, , h] = last.slice(5).split(',').map(Number);
+    expect(y! + h!).toBe(cardHeight(m));
+  });
+
+  it('is not drawn when there is none', () => {
+    const { ctx, texts } = recorder();
+    drawGameCard(ctx, { ...card(), story: [] });
+    expect(texts).not.toContain('How it went');
+  });
+});
+
+describe('wrapping text', () => {
+  it('breaks at spaces, never inside a word, and keeps every word', () => {
+    const text = 'Cy bought back in and went out again. Brave. Expensive, but brave.';
+    const lines = wrapLines(text, 24);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const l of lines) expect(l.length).toBeLessThanOrEqual(24);
+    expect(lines.join(' ')).toBe(text);
+  });
+
+  it('leaves a short line alone, and a single long word on its own line', () => {
+    expect(wrapLines('Short one', 50)).toEqual(['Short one']);
+    expect(wrapLines('Supercalifragilistic is long', 10)).toEqual([
+      'Supercalifragilistic',
+      'is long',
+    ]);
+    expect(wrapLines('', 10)).toEqual([]);
   });
 });
 

@@ -260,6 +260,7 @@ export function applyRound(prev: GameState, round: Round): GameState {
     entries: structuredClone(round.entries),
     eliminated: [],
     rejoined: [],
+    totals: {},
   };
 
   for (const id of active) {
@@ -306,6 +307,7 @@ export function applyRound(prev: GameState, round: Round): GameState {
     state.firstPlayerId = state.dealerId ? nextActiveAfter(state, state.dealerId) : null;
   }
 
+  for (const [id, player] of Object.entries(state.players)) record.totals[id] = player.total;
   state.rounds.push(record);
   return state;
 }

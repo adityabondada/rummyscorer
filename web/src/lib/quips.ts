@@ -56,3 +56,8 @@ export function quip(
 }
 
 export const quipCount = (kind: QuipKind): number => lines[kind].length;
+
+/** One entry from a list, chosen by a key: the same key always gives the same entry. */
+export function pick<T>(pool: readonly T[], key: string): T {
+  return pool[hash(key) % pool.length]!;
+}

@@ -269,6 +269,20 @@ describe('ScoreBoard and ResultCard', () => {
     expect(screen.getAllByText(/pays/, { selector: 'li' })).toHaveLength(2);
   });
 
+  it('tells how the game went, with the winner in the story', () => {
+    const state = stateWith([
+      {
+        seq: 1,
+        winnerId: 'a',
+        entries: { b: { kind: 'points', points: 60 }, c: { kind: 'points', points: 60 } },
+      },
+    ]);
+    render(<ResultCard state={state} names={names} />);
+    const recap = screen.getByTestId('recap');
+    expect(within(recap).getByRole('heading', { name: 'How it went' })).toBeInTheDocument();
+    expect(within(recap).getAllByRole('listitem').length).toBeGreaterThan(0);
+  });
+
   it('shows nothing while the game is still going', () => {
     const { container } = render(<ResultCard state={stateWith()} names={names} />);
     expect(container).toBeEmptyDOMElement();

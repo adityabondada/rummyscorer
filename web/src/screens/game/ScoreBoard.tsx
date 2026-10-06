@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { displayOrder, type GameState, type PlayerState } from '@rummy/engine';
+import { quip } from '../../lib/quips';
 import { raceView, type RaceTone } from '../../lib/race';
 import { dropsLabel } from '../../lib/roundEntry';
 import { Badge, Card, cx } from '../../ui';
@@ -62,6 +63,8 @@ function RaceRow({
   const out = moments.includes('out');
   const back = moments.includes('back');
   const id = player.id;
+  // The same joke for the same round and player, on every screen watching the game.
+  const key = `${state.rounds[state.rounds.length - 1]?.seq ?? 0}:${id}`;
 
   return (
     <li
@@ -131,22 +134,36 @@ function RaceRow({
         </div>
       </div>
       {slam && (
-        <span className="fx-chip absolute right-24 top-3 rounded-full bg-red-600 px-2 py-0.5 text-xs font-bold text-white shadow">
-          {fullCount(state)}! Full count
+        <span
+          data-fx="slam"
+          className="fx-chip absolute left-3 right-3 top-0 mx-auto w-fit max-w-full -translate-y-1/2 rounded-full bg-red-600 px-3 py-1 text-center text-xs font-bold text-white shadow"
+        >
+          {quip('slam', key, { name, cap: fullCount(state) })}
         </span>
       )}
       {back && (
-        <span className="fx-chip absolute right-24 top-3 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white shadow">
-          Back in! +${state.settings.buyIn} to the pot
+        <span
+          data-fx="back"
+          className="fx-chip absolute left-3 right-3 top-0 mx-auto w-fit max-w-full -translate-y-1/2 rounded-full bg-emerald-600 px-3 py-1 text-center text-xs font-bold text-white shadow"
+        >
+          {quip('back', key, { name, buyIn: state.settings.buyIn })}
         </span>
       )}
       {out && (
-        <span
-          aria-hidden="true"
-          className="fx-stamp absolute left-1/2 top-1/2 rounded-md border-4 border-red-600 px-3 py-0.5 text-2xl font-black uppercase tracking-widest text-red-600"
-        >
-          Out
-        </span>
+        <>
+          <span
+            aria-hidden="true"
+            className="fx-stamp absolute left-1/2 top-1/2 rounded-md border-4 border-red-600 px-3 py-0.5 text-2xl font-black uppercase tracking-widest text-red-600"
+          >
+            Out
+          </span>
+          <span
+            data-fx="out"
+            className="fx-chip absolute bottom-0 left-3 right-3 mx-auto w-fit max-w-full translate-y-1/2 rounded-full bg-slate-700 px-3 py-1 text-center text-xs font-bold text-white shadow"
+          >
+            {quip('out', key, { name })}
+          </span>
+        </>
       )}
     </li>
   );

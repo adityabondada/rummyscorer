@@ -221,8 +221,8 @@
   animation: out-stamp 2s ease-out both;
 }
 
+/* With motion switched off the jokes still show for their couple of seconds, just without moving. */
 @media (prefers-reduced-motion: reduce) {
-  .fx-chip,
   .fx-stamp {
     display: none;
   }

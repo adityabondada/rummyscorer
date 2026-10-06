@@ -192,8 +192,16 @@ export function RejoinModal({
 }) {
   const nameOf = (id: string) => names[id] ?? '?';
   const inGame = displayOrder(state).filter((id) => id !== playerId && state.players[id]!.active);
-  // Places are numbered by the player they come before; the last one is after everyone.
-  const [place, setPlace] = useState(inGame.length);
+  // Places are numbered by the player they come before; the last one is after everyone, which is
+  // the same gap as before the first player, because the deal wraps.
+  // Whoever is due to deal next, and whoever is due the opening card, must still be, so nobody can
+  // sit just before either of them.
+  // With so few players left that every place would do that, any place is allowed.
+  const isDue = (id: string | undefined) => id === state.dealerId || id === state.firstPlayerId;
+  const everyPlaceBlocked = inGame.length > 0 && inGame.every(isDue);
+  const blocked = (at: number) => !everyPlaceBlocked && isDue(inGame[at % inGame.length]);
+  const first = [inGame.length, ...inGame.keys()].find((at) => !blocked(at)) ?? inGame.length;
+  const [place, setPlace] = useState(first);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -212,6 +220,7 @@ export function RejoinModal({
       <button
         type="button"
         aria-pressed={place === at}
+        disabled={blocked(at)}
         aria-label={
           at < inGame.length
             ? `Sit before ${nameOf(inGame[at]!)}`
@@ -222,12 +231,12 @@ export function RejoinModal({
         onClick={() => setPlace(at)}
         className={`flex w-full items-center rounded-lg px-3 text-left text-sm ring-1 ${
           place === at ? 'bg-slate-100 py-2.5 ring-slate-900' : 'py-1.5 ring-slate-200'
-        }`}
+        } ${blocked(at) ? 'opacity-40' : ''}`}
       >
         {place === at ? (
           <strong>{nameOf(playerId)} sits here</strong>
         ) : (
-          <span className="text-slate-400">Sit here</span>
+          <span className="text-slate-400">{blocked(at) ? 'Not here' : 'Sit here'}</span>
         )}
       </button>
     </li>
@@ -243,7 +252,8 @@ export function RejoinModal({
         <div>
           <p className="text-sm font-medium">Where do they sit?</p>
           <p className="text-xs text-slate-500">
-            The deal goes down this list and back to the top. Tap the place they take.
+            The deal goes down this list and back to the top. Tap the place they take. They can't
+            sit where it would change who deals next or who gets the opening card.
           </p>
         </div>
         <ol className="space-y-1" aria-label="Seating order">
@@ -253,6 +263,9 @@ export function RejoinModal({
               <span className="font-medium">{nameOf(id)}</span>
               {id === state.dealerId && (
                 <span className="text-xs text-slate-500"> · deals next</span>
+              )}
+              {id === state.firstPlayerId && (
+                <span className="text-xs text-slate-500"> · opening card</span>
               )}
             </li>,
           ])}

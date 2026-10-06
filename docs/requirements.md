@@ -104,7 +104,7 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 - Rejoin is allowed only while that highest score is within the game's rejoin cutoff, if one is set (off by default).
 - A rejoin happens between rounds only: it is recorded after a round, and the player scores from the next round. Scrapping a round also removes rejoins recorded after it.
 - Drops follow the "Drops on rejoin" setting.
-- On rejoin, members place the player in the seating order manually: the screen lists only the players still in the game, with a place to sit between each pair and at the end, and the player takes the place tapped (last by default). Players who are out are not shown.
+- On rejoin, members place the player in the seating order manually: the screen lists only the players still in the game, with a place to sit between each pair and at the end, and the player takes the place tapped. A place that would change who deals next, or who gets the opening card, is not offered, so the deal carries on as it would have without the rejoin (if so few players are left that every place would, any place is allowed). Players who are out are not shown.
 - Rejoins are tracked so net money reflects multiple buy-ins.
 
 ## Game end and settlement

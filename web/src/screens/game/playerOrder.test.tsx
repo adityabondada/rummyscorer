@@ -100,7 +100,8 @@ describe('the order players are listed in on the game screen', () => {
 });
 
 describe('choosing where someone sits when they rejoin', () => {
-  // Line-up Asha, Bo, Cy, Dev, Eli. Cy and Eli are out, and Cy is about to rejoin.
+  // Line-up Asha, Bo, Cy, Dev, Eli. Eli dealt round 1, so Asha deals next and Bo is due the
+  // opening card. Cy and Eli are out, and Cy is about to rejoin.
   const out = () =>
     play(
       ['a', 'b', 'c', 'd', 'e'],
@@ -121,77 +122,48 @@ describe('choosing where someone sits when they rejoin', () => {
     return { onConfirm, user: userEvent.setup() };
   }
   const list = () => within(screen.getByRole('list', { name: 'Seating order' }));
+  const spot = (name: string) => screen.getByRole('button', { name });
 
-  it('lists only the players still in the game, not the ones who are out', () => {
+  it('lists only the players still in the game, in the order the table was set up in', () => {
     open();
     const players = list()
       .getAllByRole('listitem')
-      .map((li) => li.textContent)
-      .filter((t) => t && !/Sit |sits/.test(t));
-    expect(players.map((t) => t!.replace(/ · deals next/, ''))).toEqual(['Asha', 'Bo', 'Dev']);
+      .filter((li) => !li.querySelector('button'))
+      .map((li) => li.querySelector('.font-medium')?.textContent);
+    expect(players).toEqual(['Asha', 'Bo', 'Dev']);
     expect(screen.queryByText('Eli')).not.toBeInTheDocument();
   });
 
-  it('lists them in the order the table was set up in, with a place between each and at the end', () => {
+  it('says who deals next and who gets the opening card', () => {
     open();
-    const items = list()
-      .getAllByRole('listitem')
-      .map((li) => li.textContent!.replace(/ · deals next/, ''));
-    expect(items).toEqual([
-      'Sit here',
-      'Asha',
-      'Sit here',
-      'Bo',
-      'Sit here',
-      'Dev',
-      'Cy sits here',
-    ]);
-  });
-
-  it('starts with them sitting last, and says so', () => {
-    open();
-    expect(screen.getByRole('button', { name: 'Sit after Dev' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(screen.getByText('Cy sits here')).toBeInTheDocument();
-  });
-
-  it('says who deals next, and how the deal goes', () => {
-    open();
-    expect(screen.getByText(/deals next/)).toBeInTheDocument();
+    expect(list().getByText(/deals next/)).toBeInTheDocument();
+    expect(list().getByText(/opening card/)).toBeInTheDocument();
     expect(
       screen.getByText(/The deal goes down this list and back to the top/),
     ).toBeInTheDocument();
   });
 
-  it('moves the marker to the place tapped', async () => {
-    const { user } = open();
-    await user.click(screen.getByRole('button', { name: 'Sit before Bo' }));
-    expect(screen.getByRole('button', { name: 'Sit before Bo' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(screen.getByRole('button', { name: 'Sit after Dev' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-    expect(screen.getAllByText('Cy sits here')).toHaveLength(1);
+  it('does not allow a place that would change who deals next or who gets the opening card', () => {
+    open();
+    // Before Asha (the dealer) and before Bo (the opening card), and the wrap after Dev.
+    expect(spot('Sit before Asha')).toBeDisabled();
+    expect(spot('Sit before Bo')).toBeDisabled();
+    expect(spot('Sit after Dev')).toBeDisabled();
+    expect(spot('Sit before Dev')).toBeEnabled();
   });
 
-  it.each([
-    ['Sit before Asha', 'a'],
-    ['Sit before Bo', 'b'],
-    ['Sit before Dev', 'd'],
-    ['Sit after Dev', 'a'],
-  ])('puts them where the tapped place says: %s (deals before %s)', async (label, expected) => {
+  it('starts at the first place that is allowed, and says so', () => {
+    open();
+    expect(spot('Sit before Dev')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Cy sits here')).toBeInTheDocument();
+  });
+
+  it('puts them in the place chosen without changing who deals or opens', async () => {
     const onConfirm = vi.fn().mockResolvedValue(null);
     const { user } = open(onConfirm);
-    await user.click(screen.getByRole('button', { name: label }));
     await user.click(screen.getByRole('button', { name: 'Rejoin for $10' }));
     const seat = onConfirm.mock.calls[0]![0] as number;
 
-    // Run it through the engine, and see the table shown in that place.
     const next = replay({
       settings: { ...DEFAULT_SETTINGS, limit: 50, maxRoundPenalty: null },
       seatOrder: seatsFor(['a', 'b', 'c', 'd', 'e']),
@@ -204,30 +176,52 @@ describe('choosing where someone sits when they rejoin', () => {
         },
       ],
     });
-    // The deal wraps, so what matters is who sits after whom, round the table.
+    expect(next.dealerId).toBe('a');
+    expect(next.firstPlayerId).toBe('b');
+    // Cy sits just before Dev, and Dev is still before Asha, round the table.
     const circle = displayOrder(next).filter((id) => next.players[id]!.active);
-    const after = (id: string) => circle[(circle.indexOf(id) + 1) % circle.length];
-    expect(circle).toHaveLength(4);
-    expect(after('c')).toBe(expected);
+    expect(circle).toEqual(['a', 'b', 'c', 'd']);
   });
 
-  it('shows a lone place to sit when nobody else is in the game yet', () => {
+  it('keeps the deal the same wherever they sit, among the allowed places', async () => {
+    // Only one place is open here, so check the rule through the engine for every place.
+    const results = [0, 1, 2, 3, 4].map((seatIndex) =>
+      replay({
+        settings: { ...DEFAULT_SETTINGS, limit: 50, maxRoundPenalty: null },
+        seatOrder: seatsFor(['a', 'b', 'c', 'd', 'e']),
+        rounds: [
+          {
+            seq: 1,
+            winnerId: 'a',
+            entries: { b: pts(10), c: pts(60), d: pts(10), e: pts(60) },
+            rejoins: [{ playerId: 'c', seatIndex }],
+          },
+        ],
+      }),
+    );
+    const keeps = results.map((s) => s.dealerId === 'a' && s.firstPlayerId === 'b');
+    // Seats are among [e, a, b, d]. Seat 1 puts Cy before Asha and seat 2 between Asha and Bo,
+    // so both change the deal. Seats 0, 3 and 4 are all between Dev and Asha, or before Dev.
+    expect(keeps).toEqual([true, false, false, true, true]);
+  });
+
+  it('lets them sit anywhere when so few are left that every place changes the deal', async () => {
     const only = replay({
       settings: { ...DEFAULT_SETTINGS, limit: 50, maxRoundPenalty: null },
-      seatOrder: seatsFor(['a', 'b']),
-      rounds: [{ seq: 1, winnerId: 'a', entries: { b: pts(60) } }],
+      seatOrder: seatsFor(['a', 'b', 'c']),
+      rounds: [{ seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(60) } }],
     });
-    // The game ended, but the modal must still not break with a single player left.
     render(
       <RejoinModal
         state={only}
-        playerId="b"
+        playerId="c"
         names={names}
-        entryScore={1}
-        onConfirm={vi.fn()}
+        entryScore={11}
+        onConfirm={vi.fn().mockResolvedValue(null)}
         onClose={() => {}}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Sit after Asha' })).toBeInTheDocument();
+    expect(spot('Sit before Asha')).toBeEnabled();
+    expect(spot('Sit after Bo')).toBeEnabled();
   });
 });

@@ -63,10 +63,21 @@ export function parseLeague(data: unknown): LeagueDoc {
   return {
     name: str(d.name, 'name'),
     adminUid: str(d.adminUid, 'adminUid'),
+    adminUids: d.adminUids === undefined ? [] : strings(d.adminUids, 'adminUids'),
     inviteCode: str(d.inviteCode, 'inviteCode'),
     memberUids: strings(d.memberUids, 'memberUids'),
     createdAt: num(d.createdAt, 'createdAt'),
   };
+}
+
+/** Whether this person is an admin of the league: its owner, or a member the admin promoted. */
+export function isLeagueAdmin(
+  league: Pick<LeagueDoc, 'adminUid' | 'adminUids' | 'memberUids'>,
+  uid: string,
+): boolean {
+  return (
+    league.adminUid === uid || (league.adminUids.includes(uid) && league.memberUids.includes(uid))
+  );
 }
 
 export function parseSettled(data: unknown): SettledDoc {

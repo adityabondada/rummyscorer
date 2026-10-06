@@ -35,3 +35,34 @@ export function describeError(message: string, names: Record<string, string>): s
   const escaped = ids.map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   return message.replace(new RegExp(`\\b(${escaped.join('|')})\\b`, 'g'), (id) => names[id] ?? id);
 }
+
+const sameName = (a: string, b: string) =>
+  a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * The player who already has this name, ignoring case and extra spaces, so the same person can't
+ * be added twice. Profiles merged into another don't count, and `exceptId` is the player being
+ * renamed.
+ */
+export function duplicateOf(
+  players: PlayerMap,
+  name: string,
+  exceptId?: string,
+): { id: string; retired: boolean } | null {
+  for (const [id, p] of Object.entries(players)) {
+    if (id !== exceptId && p.mergedInto === null && sameName(p.name, name)) {
+      return { id, retired: p.retired };
+    }
+  }
+  return null;
+}
+
+/** The message for a name that's taken, or '' when it's free. */
+export function duplicateMessage(players: PlayerMap, name: string, exceptId?: string): string {
+  const dup = duplicateOf(players, name, exceptId);
+  if (!dup) return '';
+  const who = name.trim();
+  return dup.retired
+    ? `${who} is already in this league, but retired. Bring them back instead.`
+    : `${who} is already in this league.`;
+}

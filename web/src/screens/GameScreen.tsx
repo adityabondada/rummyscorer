@@ -1,7 +1,7 @@
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { rejoinEligibility, type Round } from '@rummy/engine';
+import { displayOrder, rejoinEligibility, type Round } from '@rummy/engine';
 import { gamePath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
 import { deleteGame, errorMessage } from '../api';
 import { db } from '../firebase';
@@ -50,7 +50,7 @@ type Dialog =
 export function GameScreen() {
   const { gameId = '' } = useParams();
   const navigate = useNavigate();
-  const { leagueId, league, uid, players, names } = useLeagueContext();
+  const { leagueId, league, uid, isAdmin, players, names } = useLeagueContext();
   const live = useLiveGame(leagueId, gameId, players);
   const { game, rows, state } = live;
   const [dialog, setDialog] = useState<Dialog | null>(null);
@@ -84,7 +84,7 @@ export function GameScreen() {
     );
     try {
       const base = gameState({ ...game, split: null }, stripped, players);
-      return Object.keys(state.players)
+      return displayOrder(state)
         .filter((id) => !state.players[id]!.active)
         .map((id) => ({ id, check: rejoinEligibility(base, id) }));
     } catch {
@@ -199,14 +199,16 @@ export function GameScreen() {
           <Button variant="secondary" small onClick={() => setDialog({ kind: 'share' })}>
             Share
           </Button>
-          <Button
-            variant="danger"
-            small
-            aria-label="Delete this game"
-            onClick={() => setDialog({ kind: 'delete' })}
-          >
-            Delete
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="danger"
+              small
+              aria-label="Delete this game"
+              onClick={() => setDialog({ kind: 'delete' })}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       }
     >

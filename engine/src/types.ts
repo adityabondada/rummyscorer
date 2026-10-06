@@ -110,6 +110,11 @@ export interface GameState {
   settings: GameSettings;
   /** Current seat order, including eliminated players. */
   seatOrder: PlayerId[];
+  /**
+   * Who holds the first card: the top of the list people set up, which is where lists of players
+   * start on screen. The player at the bottom of that list deals round 1, so is first in `seatOrder`.
+   */
+  tableStart: PlayerId;
   players: Record<PlayerId, PlayerState>;
   rounds: RoundRecord[];
   /** Seq of the latest applied round; 0 before the first round. */

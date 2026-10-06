@@ -242,11 +242,11 @@ describe('deleteGameFn', () => {
     expect(await exists(leagueId, gameId)).toBe(true);
   });
 
-  it('deletes a finished game and all its rounds for a member, and says so in the log', async () => {
+  it('deletes a finished game and all its rounds for an admin, and says so in the log', async () => {
     const { leagueId, gameId } = await leagueWithGame();
     expect((await db.collection(roundsPath(leagueId, gameId)).get()).size).toBe(2);
 
-    const res = await call('deleteGameFn', { leagueId, gameId }, ravi);
+    const res = await call('deleteGameFn', { leagueId, gameId }, admin);
     expect(res.status).toBe(200);
     expect(res.body.result).toEqual({ ok: true });
     expect(await exists(leagueId, gameId)).toBe(false);
@@ -257,8 +257,21 @@ describe('deleteGameFn', () => {
       .where('type', '==', 'gameDeleted')
       .get();
     expect(log.docs.map((d) => d.data())).toMatchObject([
-      { by: ravi.uid, details: { gameId, rounds: 2, finished: true } },
+      { by: admin.uid, details: { gameId, rounds: 2, finished: true } },
     ]);
+  });
+
+  it('refuses an ordinary member, who can then do it once made an admin', async () => {
+    const { leagueId, gameId } = await leagueWithGame();
+    const denied = await call('deleteGameFn', { leagueId, gameId }, ravi);
+    expect(denied.body.error?.status).toBe('PERMISSION_DENIED');
+    expect(await exists(leagueId, gameId)).toBe(true);
+
+    const made = await call('setAdminFn', { leagueId, memberUid: ravi.uid, admin: true }, admin);
+    expect(made.body.result).toEqual({ ok: true });
+    const done = await call('deleteGameFn', { leagueId, gameId }, ravi);
+    expect(done.status).toBe(200);
+    expect(await exists(leagueId, gameId)).toBe(false);
   });
 
   it('says the game is not found when it is already gone', async () => {

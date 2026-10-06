@@ -78,10 +78,11 @@ describe('what the picture says', () => {
     const card = buildGameCard({ leagueName: 'L', state, names });
     expect(card.headline).toBe('Split pot');
     expect(card.subhead).toBe('1 round · out past 100');
+    // Tied on everything, so in the order the table was set up in: Bo holds the first card.
     expect(card.rows.map((r) => [r.name, r.value])).toEqual([
-      ['Asha', '0'],
       ['Bo', '10'],
       ['Cy', '5'],
+      ['Asha', '0'],
     ]);
     expect(card.rows.every((r) => r.sub.startsWith('Shared win'))).toBe(true);
     expect(card.payments).toEqual([]);

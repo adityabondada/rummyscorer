@@ -10,6 +10,8 @@ const updateDoc = vi.fn();
 const mergePlayers = vi.fn();
 const unmergePlayers = vi.fn();
 const removeMember = vi.fn();
+const removePlayer = vi.fn();
+const setAdmin = vi.fn();
 const regenerateInvite = vi.fn();
 
 vi.mock('firebase/firestore', () => ({
@@ -24,6 +26,8 @@ vi.mock('../api', () => ({
   mergePlayers: (...args: unknown[]) => mergePlayers(...args),
   unmergePlayers: (...args: unknown[]) => unmergePlayers(...args),
   removeMember: (...args: unknown[]) => removeMember(...args),
+  removePlayer: (...args: unknown[]) => removePlayer(...args),
+  setAdmin: (...args: unknown[]) => setAdmin(...args),
   regenerateInvite: (...args: unknown[]) => regenerateInvite(...args),
 }));
 
@@ -43,6 +47,7 @@ const person = (name: string, over: Partial<PlayerDoc> = {}): PlayerDoc => ({
 const league: LeagueDoc = {
   name: 'Friday Rummy',
   adminUid: 'admin',
+  adminUids: [],
   inviteCode: 'ABCD2345',
   memberUids: ['admin', 'ravi'],
   createdAt: 1,
@@ -182,14 +187,14 @@ describe('the actions on a row', () => {
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('opens the menu with rename and retire, and shuts it on Escape or a tap elsewhere', async () => {
+  it('opens the menu with rename, retire and remove, and shuts it on Escape or a tap elsewhere', async () => {
     const user = setup();
     const menu = await openMenu(user, 'Bo');
     expect(
       within(menu)
         .getAllByRole('menuitem')
         .map((i) => i.textContent),
-    ).toEqual(['Rename', 'Retire']);
+    ).toEqual(['Rename', 'Retire', 'Remove from league']);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
@@ -261,9 +266,9 @@ describe('removing someone from the league', () => {
     expect(removeMember).not.toHaveBeenCalled();
   });
 
-  it('is not offered for the admin, a guest or a former member', async () => {
+  it('is not offered for the admin or a former member', async () => {
     const user = setup();
-    for (const name of ['Asha', 'Bo', 'Dev']) {
+    for (const name of ['Asha', 'Dev']) {
       const menu = await openMenu(user, name);
       expect(within(menu).queryByRole('menuitem', { name: 'Remove from league' })).toBeNull();
       await user.keyboard('{Escape}');
@@ -282,6 +287,122 @@ describe('removing someone from the league', () => {
     const menu = await openMenu(user, 'Ravi');
     await user.click(within(menu).getByRole('menuitem', { name: 'Remove from league' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('The admin cannot be removed');
+  });
+});
+
+describe('removing a guest from the league', () => {
+  beforeEach(() => {
+    removePlayer.mockReset();
+    removePlayer.mockResolvedValue({ ok: true });
+  });
+
+  it('asks, then removes the guest for good', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = setup();
+    const menu = await openMenu(user, 'Bo');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove from league' }));
+    expect(removePlayer).toHaveBeenCalledWith({ leagueId: 'L1', playerId: 'p3' });
+  });
+
+  it('does nothing when the question is declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const user = setup();
+    const menu = await openMenu(user, 'Bo');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove from league' }));
+    expect(removePlayer).not.toHaveBeenCalled();
+  });
+
+  it('is only for admins', async () => {
+    const user = setup('ravi');
+    const menu = await openMenu(user, 'Bo');
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from league' })).toBeNull();
+  });
+
+  it('says why when they have played games', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    removePlayer.mockRejectedValue(new Error('They are in games. Retire them instead.'));
+    const user = setup();
+    const menu = await openMenu(user, 'Bo');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove from league' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Retire them instead');
+  });
+});
+
+describe('making someone an admin', () => {
+  beforeEach(() => {
+    setAdmin.mockReset();
+    setAdmin.mockResolvedValue({ ok: true });
+  });
+
+  it('is offered to an admin for another member', async () => {
+    const user = setup();
+    const menu = await openMenu(user, 'Ravi');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Make admin' }));
+    expect(setAdmin).toHaveBeenCalledWith({ leagueId: 'L1', memberUid: 'ravi', admin: true });
+  });
+
+  it('is not offered for the person who made the league, or a guest', async () => {
+    const user = setup();
+    for (const name of ['Asha', 'Bo']) {
+      const menu = await openMenu(user, name);
+      expect(within(menu).queryByRole('menuitem', { name: /admin/i })).toBeNull();
+      await user.keyboard('{Escape}');
+    }
+  });
+
+  it('is not offered to a member who is not an admin', async () => {
+    const user = setup('ravi');
+    const menu = await openMenu(user, 'Asha');
+    expect(within(menu).queryByRole('menuitem', { name: /admin/i })).toBeNull();
+  });
+
+  it('shows a badge on the new admin, who can be made a member again but not removed', async () => {
+    const user = setup('admin', { league: { ...league, adminUids: ['ravi'] } });
+    const row = screen.getByText('Ravi').closest('li')!;
+    expect(within(row).getByText('Admin')).toBeInTheDocument();
+    const menu = await openMenu(user, 'Ravi');
+    expect(within(menu).queryByRole('menuitem', { name: 'Remove from league' })).toBeNull();
+    await user.click(within(menu).getByRole('menuitem', { name: 'Remove as admin' }));
+    expect(setAdmin).toHaveBeenCalledWith({ leagueId: 'L1', memberUid: 'ravi', admin: false });
+  });
+});
+
+describe('a name that is already taken', () => {
+  it('is refused when adding, ignoring case and spaces', async () => {
+    const user = setup();
+    await user.click(screen.getByRole('button', { name: 'Add player' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.type(dialog.getByLabelText('Name'), '  bo ');
+    await user.click(dialog.getByRole('button', { name: 'Add player' }));
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(dialog.getByRole('alert')).toHaveTextContent('bo is already in this league.');
+  });
+
+  it('says to bring a retired player back instead', async () => {
+    const user = setup();
+    await user.click(screen.getByRole('button', { name: 'Add player' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.type(dialog.getByLabelText('Name'), 'Cy');
+    await user.click(dialog.getByRole('button', { name: 'Add player' }));
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(dialog.getByRole('alert')).toHaveTextContent('retired. Bring them back');
+  });
+
+  it('is refused when renaming, but changing only the case is fine', async () => {
+    const user = setup();
+    const menu = await openMenu(user, 'Bo');
+    await user.click(within(menu).getByRole('menuitem', { name: 'Rename' }));
+    const dialog = within(screen.getByRole('dialog'));
+    await user.clear(dialog.getByLabelText('Name'));
+    await user.type(dialog.getByLabelText('Name'), 'ravi');
+    await user.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateDoc).not.toHaveBeenCalled();
+    expect(dialog.getByRole('alert')).toHaveTextContent('ravi is already in this league.');
+
+    await user.clear(dialog.getByLabelText('Name'));
+    await user.type(dialog.getByLabelText('Name'), 'BO');
+    await user.click(dialog.getByRole('button', { name: 'Save' }));
+    expect(updateDoc).toHaveBeenCalledWith({ path: 'leagues/L1/players/p3' }, { name: 'BO' });
   });
 });
 

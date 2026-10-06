@@ -46,6 +46,15 @@ export const removeMember = callable<{ leagueId: string; memberUid: string }, { 
   'removeMemberFn',
 );
 
+export const removePlayer = callable<{ leagueId: string; playerId: string }, { ok: true }>(
+  'removePlayerFn',
+);
+
+export const setAdmin = callable<
+  { leagueId: string; memberUid: string; admin: boolean },
+  { ok: true }
+>('setAdminFn');
+
 export const mergePlayers = callable<
   { leagueId: string; guestId: string; targetId: string },
   { gamesUpdated: number }

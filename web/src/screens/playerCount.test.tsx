@@ -52,6 +52,7 @@ const player = (name: string, over: Partial<PlayerDoc> = {}): PlayerDoc => ({
 const doc = (name: string, members: number): LeagueDoc => ({
   name,
   adminUid: 'u1',
+  adminUids: [],
   inviteCode: 'ABCD2345',
   memberUids: Array.from({ length: members }, (_, i) => `u${i}`),
   createdAt: 1,

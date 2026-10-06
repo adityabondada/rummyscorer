@@ -4,7 +4,15 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { HttpsError, onCall, type CallableRequest } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { deleteGame } from './games';
-import { createLeague, inviteInfo, joinLeague, regenerateInvite, removeMember } from './leagues';
+import {
+  createLeague,
+  inviteInfo,
+  joinLeague,
+  regenerateInvite,
+  removeMember,
+  removePlayer,
+  setAdmin,
+} from './leagues';
 import { mergePlayers, unmergePlayers } from './merge';
 import { recomputeGame, recomputeLeague, splitChanged } from './recompute';
 import { gameView, shareGame } from './share';
@@ -92,6 +100,30 @@ export const removeMemberFn = onCall(callableOptions, async (request) => {
     db(),
     callerUid(request),
     { leagueId: request.data?.leagueId, memberUid: request.data?.memberUid },
+    Date.now(),
+  );
+  return { ok: true };
+});
+
+export const removePlayerFn = onCall(callableOptions, async (request) => {
+  await removePlayer(
+    db(),
+    callerUid(request),
+    { leagueId: request.data?.leagueId, playerId: request.data?.playerId },
+    Date.now(),
+  );
+  return { ok: true };
+});
+
+export const setAdminFn = onCall(callableOptions, async (request) => {
+  await setAdmin(
+    db(),
+    callerUid(request),
+    {
+      leagueId: request.data?.leagueId,
+      memberUid: request.data?.memberUid,
+      admin: request.data?.admin,
+    },
     Date.now(),
   );
   return { ok: true };

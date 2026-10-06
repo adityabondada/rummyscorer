@@ -1,4 +1,4 @@
-import { simplifyTransfers, summarize, type GameState } from '@rummy/engine';
+import { displayOrder, simplifyTransfers, summarize, type GameState } from '@rummy/engine';
 import { Badge, Card, money } from '../../ui';
 
 const ordinal = (n: number) =>
@@ -11,7 +11,7 @@ export function ResultCard({ state, names }: { state: GameState; names: Record<s
   const nameOf = (id: string) => names[id] ?? '?';
   const winners = summary.winnerIds.map(nameOf).join(' & ');
   const transfers = simplifyTransfers(summary.net);
-  const order = [...state.seatOrder].sort(
+  const order = displayOrder(state).sort(
     (a, b) => summary.positions[a]! - summary.positions[b]! || summary.net[b]! - summary.net[a]!,
   );
 

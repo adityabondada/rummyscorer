@@ -1,6 +1,7 @@
 import { logPath, roundsPath, settledPath } from '@rummy/data';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { deleteGame } from './games';
+import { setAdmin } from './leagues';
 import { recomputeGame } from './recompute';
 import { addGame, addRound, caught, clearDb, NOW, pts, seedLeague, testDb } from './testing';
 
@@ -25,27 +26,40 @@ describe('deleteGame', () => {
     const { leagueId, gameId } = await gameWithRounds();
     expect(await count(roundsPath(leagueId, gameId))).toBe(2);
 
-    await deleteGame(db, 'u2', { leagueId, gameId }, NOW);
+    await deleteGame(db, 'admin', { leagueId, gameId }, NOW);
 
     expect(await exists(`leagues/${leagueId}/games/${gameId}`)).toBe(false);
     expect(await count(roundsPath(leagueId, gameId))).toBe(0);
   });
 
-  it('can be done by any member, not only the one who started the game', async () => {
+  it('is for admins only, not for an ordinary member', async () => {
     const { leagueId, gameId } = await gameWithRounds();
-    await expect(deleteGame(db, 'admin', { leagueId, gameId }, NOW)).resolves.toBeUndefined();
+    const err = await caught(() => deleteGame(db, 'u2', { leagueId, gameId }, NOW));
+    expect(err.code).toBe('permission-denied');
+    expect(await exists(`leagues/${leagueId}/games/${gameId}`)).toBe(true);
+    expect(await count(roundsPath(leagueId, gameId))).toBe(2);
+  });
+
+  it('can be done by a member who was made an admin, and not after they stop being one', async () => {
+    const { leagueId, gameId } = await gameWithRounds();
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: false }, NOW);
+    const err = await caught(() => deleteGame(db, 'u2', { leagueId, gameId }, NOW));
+    expect(err.code).toBe('permission-denied');
+    await setAdmin(db, 'admin', { leagueId, memberUid: 'u2', admin: true }, NOW);
+    await expect(deleteGame(db, 'u2', { leagueId, gameId }, NOW)).resolves.toBeUndefined();
   });
 
   it('leaves a log entry saying what was deleted and by whom', async () => {
     const { leagueId, gameId } = await gameWithRounds();
-    await deleteGame(db, 'u2', { leagueId, gameId }, NOW + 7);
+    await deleteGame(db, 'admin', { leagueId, gameId }, NOW + 7);
 
     const entries = (
       await db.collection(logPath(leagueId)).where('type', '==', 'gameDeleted').get()
     ).docs;
     expect(entries).toHaveLength(1);
     expect(entries[0]!.data()).toMatchObject({
-      by: 'u2',
+      by: 'admin',
       at: NOW + 7,
       details: { gameId, players: 2, rounds: 2, finished: true, startedAt: NOW },
     });
@@ -56,7 +70,7 @@ describe('deleteGame', () => {
     const other = await addGame(db, leagueId, [a, b]);
     await addRound(db, leagueId, other, { seq: 1, winnerId: a, entries: { [b]: pts(5) } });
 
-    await deleteGame(db, 'u2', { leagueId, gameId }, NOW);
+    await deleteGame(db, 'admin', { leagueId, gameId }, NOW);
 
     expect(await exists(`leagues/${leagueId}/games/${other}`)).toBe(true);
     expect(await count(roundsPath(leagueId, other))).toBe(1);
@@ -70,10 +84,10 @@ describe('deleteGame', () => {
       from: 'x',
       to: 'y',
       amount: 10,
-      by: 'u2',
+      by: 'admin',
       at: 1,
     });
-    await deleteGame(db, 'u2', { leagueId, gameId }, NOW);
+    await deleteGame(db, 'admin', { leagueId, gameId }, NOW);
     expect(await count(settledPath(leagueId))).toBe(1);
   });
 
@@ -84,7 +98,7 @@ describe('deleteGame', () => {
     expect(await exists(`leagues/${leagueId}/games/${gameId}`)).toBe(false);
   });
 
-  it('is for league members only', async () => {
+  it('is not for someone outside the league', async () => {
     const { leagueId, gameId } = await gameWithRounds();
     const err = await caught(() => deleteGame(db, 'stranger', { leagueId, gameId }, NOW));
     expect(err.code).toBe('permission-denied');
@@ -94,16 +108,18 @@ describe('deleteGame', () => {
 
   it('says so when the game or the league does not exist', async () => {
     const { leagueId } = await gameWithRounds();
-    const noGame = await caught(() => deleteGame(db, 'u2', { leagueId, gameId: 'missing' }, NOW));
+    const noGame = await caught(() =>
+      deleteGame(db, 'admin', { leagueId, gameId: 'missing' }, NOW),
+    );
     expect(noGame.code).toBe('not-found');
     const noLeague = await caught(() =>
-      deleteGame(db, 'u2', { leagueId: 'nope', gameId: 'x' }, NOW),
+      deleteGame(db, 'admin', { leagueId: 'nope', gameId: 'x' }, NOW),
     );
     expect(noLeague.code).toBe('not-found');
   });
 
   it('needs both ids', async () => {
-    const err = await caught(() => deleteGame(db, 'u2', { leagueId: 'x', gameId: '' }, NOW));
+    const err = await caught(() => deleteGame(db, 'admin', { leagueId: 'x', gameId: '' }, NOW));
     expect(err.code).toBe('invalid-argument');
   });
 });

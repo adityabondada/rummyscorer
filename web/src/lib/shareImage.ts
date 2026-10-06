@@ -1,4 +1,4 @@
-import { simplifyTransfers, summarize, type GameState } from '@rummy/engine';
+import { displayOrder, simplifyTransfers, summarize, type GameState } from '@rummy/engine';
 import type { Night } from './night';
 import { raceView, type RaceTone } from './race';
 
@@ -54,7 +54,7 @@ export function buildGameCard(args: {
   const summary = summarize(state);
 
   if (summary) {
-    const order = [...state.seatOrder].sort(
+    const order = displayOrder(state).sort(
       (a, b) => summary.positions[a]! - summary.positions[b]! || summary.net[b]! - summary.net[a]!,
     );
     const split = summary.outcome === 'split';

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { suggestSplit, type GameState } from '@rummy/engine';
+import { displayOrder, suggestSplit, type GameState } from '@rummy/engine';
 import { Button, ErrorText, Field, Modal, money } from '../../ui';
 
 /** Asks why, then runs the action. Used for scrapping and rolling back. */
@@ -170,7 +170,11 @@ export function RollbackModal({
   );
 }
 
-/** Choose where a returning player sits; they re-enter at the highest active score plus one. */
+/**
+ * Choose where a returning player sits; they re-enter at the highest active score plus one. Only
+ * the players still in the game are listed, in the order the table was set up in, with a place to
+ * sit between each pair and at the end. The deal goes down the list and back to the top.
+ */
 export function RejoinModal({
   state,
   playerId,
@@ -186,43 +190,73 @@ export function RejoinModal({
   onConfirm: (seatIndex: number) => Promise<string | null>;
   onClose: () => void;
 }) {
-  const others = state.seatOrder.filter((id) => id !== playerId);
-  const [seat, setSeat] = useState(others.length);
+  const nameOf = (id: string) => names[id] ?? '?';
+  const inGame = displayOrder(state).filter((id) => id !== playerId && state.players[id]!.active);
+  // Places are numbered by the player they come before; the last one is after everyone.
+  const [place, setPlace] = useState(inGame.length);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // The engine wants a seat among everyone, players who are out included. Sitting next to an
+  // active player puts them in the same place in the deal, whoever is out in between.
+  const everyone = state.seatOrder.filter((id) => id !== playerId);
+  const seatIndex =
+    inGame.length === 0
+      ? everyone.length
+      : place < inGame.length
+        ? everyone.indexOf(inGame[place]!)
+        : everyone.indexOf(inGame[inGame.length - 1]!) + 1;
+
+  const spot = (at: number) => (
+    <li key={`spot-${at}`}>
+      <button
+        type="button"
+        aria-pressed={place === at}
+        aria-label={
+          at < inGame.length
+            ? `Sit before ${nameOf(inGame[at]!)}`
+            : inGame.length > 0
+              ? `Sit after ${nameOf(inGame[inGame.length - 1]!)}`
+              : 'Sit here'
+        }
+        onClick={() => setPlace(at)}
+        className={`flex w-full items-center rounded-lg px-3 text-left text-sm ring-1 ${
+          place === at ? 'bg-slate-100 py-2.5 ring-slate-900' : 'py-1.5 ring-slate-200'
+        }`}
+      >
+        {place === at ? (
+          <strong>{nameOf(playerId)} sits here</strong>
+        ) : (
+          <span className="text-slate-400">Sit here</span>
+        )}
+      </button>
+    </li>
+  );
+
   return (
-    <Modal title={`${names[playerId] ?? '?'} rejoins`} onClose={onClose}>
+    <Modal title={`${nameOf(playerId)} rejoins`} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-sm text-slate-600">
           Pays the ${state.settings.buyIn} buy-in, which goes in the pot, and re-enters on{' '}
           <strong>{entryScore}</strong> points.
         </p>
-        <p className="text-sm font-medium">Where do they sit?</p>
-        <ol className="space-y-1">
-          {Array.from({ length: others.length + 1 }, (_, slot) => (
-            <li key={slot}>
-              <button
-                type="button"
-                aria-pressed={seat === slot}
-                onClick={() => setSeat(slot)}
-                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm ring-1 ${
-                  seat === slot ? 'bg-slate-100 ring-slate-900' : 'ring-slate-200'
-                }`}
-              >
-                {seat === slot ? (
-                  <strong>{names[playerId] ?? '?'} sits here</strong>
-                ) : (
-                  <span className="text-slate-500">
-                    {slot === 0 ? 'First seat' : `Seat ${slot + 1}`}
-                  </span>
-                )}
-                {others[slot] && seat !== slot && (
-                  <span className="ml-auto">{names[others[slot]!]}</span>
-                )}
-              </button>
-            </li>
-          ))}
+        <div>
+          <p className="text-sm font-medium">Where do they sit?</p>
+          <p className="text-xs text-slate-500">
+            The deal goes down this list and back to the top. Tap the place they take.
+          </p>
+        </div>
+        <ol className="space-y-1" aria-label="Seating order">
+          {inGame.map((id, i) => [
+            spot(i),
+            <li key={id} className="px-3 py-1.5 text-sm">
+              <span className="font-medium">{nameOf(id)}</span>
+              {id === state.dealerId && (
+                <span className="text-xs text-slate-500"> · deals next</span>
+              )}
+            </li>,
+          ])}
+          {spot(inGame.length)}
         </ol>
         <ErrorText>{error}</ErrorText>
         <Button
@@ -230,7 +264,7 @@ export function RejoinModal({
           disabled={busy}
           onClick={async () => {
             setBusy(true);
-            const problem = await onConfirm(seat);
+            const problem = await onConfirm(seatIndex);
             if (problem) {
               setError(problem);
               setBusy(false);

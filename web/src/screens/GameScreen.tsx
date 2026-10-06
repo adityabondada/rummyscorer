@@ -1,7 +1,7 @@
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { rejoinEligibility, type Round } from '@rummy/engine';
+import { displayOrder, rejoinEligibility, type Round } from '@rummy/engine';
 import { gamePath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
 import { deleteGame, errorMessage } from '../api';
 import { db } from '../firebase';
@@ -84,7 +84,7 @@ export function GameScreen() {
     );
     try {
       const base = gameState({ ...game, split: null }, stripped, players);
-      return Object.keys(state.players)
+      return displayOrder(state)
         .filter((id) => !state.players[id]!.active)
         .map((id) => ({ id, check: rejoinEligibility(base, id) }));
     } catch {

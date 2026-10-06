@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { GameState, PlayerState } from '@rummy/engine';
+import { displayOrder, type GameState, type PlayerState } from '@rummy/engine';
 import { raceView, type RaceTone } from '../../lib/race';
 import { dropsLabel } from '../../lib/roundEntry';
 import { Badge, Card, cx } from '../../ui';
@@ -117,7 +117,7 @@ export function ScoreBoard({ state, names }: { state: GameState; names: Record<s
         <span>Out past {state.settings.limit}</span>
       </div>
       <ul className="divide-y divide-slate-100">
-        {state.seatOrder.map((id) => (
+        {displayOrder(state).map((id) => (
           <RaceRow
             key={id}
             state={state}

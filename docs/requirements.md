@@ -68,7 +68,7 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 - Eliminated players are skipped as dealer.
 - A rejoining player is placed in the order manually at the time of rejoin.
 - Scrapping rounds rolls the dealer back with them.
-- The round entry screen shows the current dealer and who plays first, and lists players in seat order.
+- The game screen, the round entry screen and the result list players in the order the line-up was set: first card at the top, the round 1 dealer at the bottom. That order does not change as the deal moves round the table.
 
 ## Rounds, drops, elimination and rejoin
 
@@ -104,7 +104,7 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 - Rejoin is allowed only while that highest score is within the game's rejoin cutoff, if one is set (off by default).
 - A rejoin happens between rounds only: it is recorded after a round, and the player scores from the next round. Scrapping a round also removes rejoins recorded after it.
 - Drops follow the "Drops on rejoin" setting.
-- On rejoin, members place the player in the seating order manually.
+- On rejoin, members place the player in the seating order manually: the screen lists only the players still in the game, with a place to sit between each pair and at the end, and the player takes the place tapped (last by default). Players who are out are not shown.
 - Rejoins are tracked so net money reflects multiple buy-ins.
 
 ## Game end and settlement

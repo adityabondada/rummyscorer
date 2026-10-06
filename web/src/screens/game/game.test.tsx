@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { DEFAULT_SETTINGS, type GameState, type Round } from '@rummy/engine';
@@ -74,7 +74,9 @@ describe('RoundEntry', () => {
 
   it('saves a round from a winner, points and a drop', async () => {
     const { onSubmit, user } = setup();
-    await user.click(screen.getAllByRole('button', { name: 'Won' })[0]!);
+    await user.click(
+      within(screen.getByText('Asha').closest('li')!).getByRole('button', { name: 'Won' }),
+    );
     await user.type(screen.getByLabelText('Bo points'), '25');
     await user.click(screen.getAllByRole('button', { name: /Drop 20/ })[1]!);
     await user.click(screen.getByRole('button', { name: 'Save round' }));
@@ -95,7 +97,9 @@ describe('RoundEntry', () => {
       },
     ]);
     const { onSubmit, user } = setup(played);
-    await user.click(screen.getAllByRole('button', { name: 'Won' })[0]!);
+    await user.click(
+      within(screen.getByText('Asha').closest('li')!).getByRole('button', { name: 'Won' }),
+    );
     await user.type(screen.getByLabelText('Bo points'), '5');
     await user.type(screen.getByLabelText('Cy points'), '5');
     await user.click(screen.getByRole('button', { name: 'Save round' }));
@@ -107,7 +111,9 @@ describe('RoundEntry', () => {
     await user.click(screen.getByRole('button', { name: 'Save round' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Pick who won');
 
-    await user.click(screen.getAllByRole('button', { name: 'Won' })[0]!);
+    await user.click(
+      within(screen.getByText('Asha').closest('li')!).getByRole('button', { name: 'Won' }),
+    );
     await user.type(screen.getByLabelText('Bo points'), '10');
     await user.click(screen.getByRole('button', { name: 'Save round' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Cy');
@@ -129,7 +135,9 @@ describe('RoundEntry', () => {
 
   it('shows the reason when saving fails', async () => {
     const { user } = setup(stateWith(), vi.fn().mockResolvedValue('Could not save'));
-    await user.click(screen.getAllByRole('button', { name: 'Won' })[0]!);
+    await user.click(
+      within(screen.getByText('Asha').closest('li')!).getByRole('button', { name: 'Won' }),
+    );
     await user.type(screen.getByLabelText('Bo points'), '10');
     await user.type(screen.getByLabelText('Cy points'), '10');
     await user.click(screen.getByRole('button', { name: 'Save round' }));
@@ -138,7 +146,9 @@ describe('RoundEntry', () => {
 
   it('refuses points past the cap', async () => {
     const { onSubmit, user } = setup(stateWith([], { maxRoundPenalty: 80 }));
-    await user.click(screen.getAllByRole('button', { name: 'Won' })[0]!);
+    await user.click(
+      within(screen.getByText('Asha').closest('li')!).getByRole('button', { name: 'Won' }),
+    );
     await user.type(screen.getByLabelText('Bo points'), '81');
     await user.type(screen.getByLabelText('Cy points'), '5');
     await user.click(screen.getByRole('button', { name: 'Save round' }));
@@ -221,7 +231,7 @@ describe('RejoinModal', () => {
     );
     const user = userEvent.setup();
     expect(screen.getByText(/re-enters on/)).toHaveTextContent('11');
-    await user.click(screen.getByRole('button', { name: /First seat/ }));
+    await user.click(screen.getByRole('button', { name: 'Sit before Asha' }));
     await user.click(screen.getByRole('button', { name: 'Rejoin for $10' }));
     expect(onConfirm).toHaveBeenCalledWith(0);
   });

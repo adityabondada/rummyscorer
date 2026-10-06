@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { activeIds, type GameState, type PenaltyReason, type Round } from '@rummy/engine';
+import {
+  activeIds,
+  displayOrder,
+  type GameState,
+  type PenaltyReason,
+  type Round,
+} from '@rummy/engine';
 import { describeError } from '../../lib/names';
 import {
   buildRound,
@@ -51,7 +57,8 @@ export function RoundEntry({
   const saveButton = useRef<HTMLButtonElement>(null);
   const focusFirstBox = useRef(false);
 
-  const players = activeIds(state);
+  // In the order the table was set up in, with the dealer wherever they fall.
+  const players = displayOrder(state).filter((id) => state.players[id]!.active);
   const nameOf = (id: string) => names[id] ?? '?';
   const penaltyMode = form.mode === 'penalty';
 
@@ -207,7 +214,8 @@ export function RoundEntry({
           </>
         ) : (
           <p className="text-sm text-slate-600">
-            Tap who won, then enter everyone else's points, or tap Drop. Players are in seat order.
+            Tap who won, then enter everyone else's points, or tap Drop. Players are in the order
+            you set.
           </p>
         )}
 

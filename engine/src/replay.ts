@@ -22,6 +22,21 @@ export interface ReplayOptions {
 
 export const REJOIN_ENTRY_OFFSET = 1;
 
+/**
+ * Everyone at the table in the order the list was set up in: the first card at the top and the
+ * player who dealt round 1 at the bottom, going round the table the way the deal does. `seatOrder`
+ * starts at the dealer instead, which reads as the wrong player being first. Rejoins that moved
+ * someone are reflected, since this is the same cycle turned to start at the same place.
+ */
+export function displayOrder(
+  state: Pick<GameState, 'seatOrder'> & { tableStart?: PlayerId },
+): PlayerId[] {
+  const at = state.tableStart === undefined ? -1 : state.seatOrder.indexOf(state.tableStart);
+  return at <= 0
+    ? [...state.seatOrder]
+    : [...state.seatOrder.slice(at), ...state.seatOrder.slice(0, at)];
+}
+
 export function activeIds(state: GameState): PlayerId[] {
   return state.seatOrder.filter((id) => state.players[id]!.active);
 }
@@ -68,6 +83,9 @@ export function initialState(settings: GameSettings, seatOrder: PlayerId[]): Gam
   const state: GameState = {
     settings,
     seatOrder: [...seatOrder],
+    // seatOrder starts with the dealer, who is last in the list people set up, so the first card
+    // goes to the next seat.
+    tableStart: seatOrder[1]!,
     players,
     rounds: [],
     lastSeq: 0,

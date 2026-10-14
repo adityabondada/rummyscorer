@@ -121,7 +121,15 @@ function parseEntries(value: unknown): Record<string, RoundEntry> {
 function parseRejoins(value: unknown): Rejoin[] {
   return arr(value ?? [], 'rejoins').map((r, i) => {
     const d = obj(r, `rejoins[${i}]`);
-    return { playerId: str(d.playerId, 'playerId'), seatIndex: num(d.seatIndex, 'seatIndex') };
+    const join =
+      d.join === undefined || d.join === null
+        ? undefined
+        : { drops: num(obj(d.join, `rejoins[${i}].join`).drops, 'drops') };
+    return {
+      playerId: str(d.playerId, 'playerId'),
+      seatIndex: num(d.seatIndex, 'seatIndex'),
+      ...(join ? { join } : {}),
+    };
   });
 }
 
@@ -253,6 +261,7 @@ export function parseGame(data: unknown): GameDoc {
     }),
     summary: nullable(d.summary, parseSummary),
     summaryError: nullable(d.summaryError, (v) => str(v, 'summaryError')),
+    ...(d.playerIds === undefined ? {} : { playerIds: strings(d.playerIds, 'playerIds') }),
     ...(d.shareCode === undefined
       ? {}
       : { shareCode: nullable(d.shareCode, (v) => str(v, 'shareCode')) }),

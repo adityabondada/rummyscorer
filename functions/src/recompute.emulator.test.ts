@@ -61,9 +61,12 @@ describe('recomputeGame', () => {
       entries: { [profiles.u2!]: pts(10) },
     });
 
+    // The first pass only notes who is playing; the game itself is still in progress.
+    expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('updated');
     expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('unchanged');
     const game = await readGame(db, leagueId, gameId);
     expect(game).toMatchObject({ status: 'inProgress', summary: null, summaryError: null });
+    expect(game.playerIds).toEqual([profiles.admin!, profiles.u2!]);
   });
 
   it('writes nothing when the result is the same', async () => {

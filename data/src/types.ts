@@ -66,7 +66,7 @@ export interface GameSummaryDoc {
 
 export interface GameDoc {
   settings: GameSettings;
-  /** Initial seat order. Later changes (rejoins) live in the rounds. */
+  /** Initial seat order. Later changes (rejoins, people joining late) live in the rounds. */
   seatOrder: PlayerId[];
   /** Set by functions from the replay; clients always create games as 'inProgress'. */
   status: 'inProgress' | 'finished';
@@ -78,6 +78,12 @@ export interface GameDoc {
   summary: GameSummaryDoc | null;
   /** Set by functions when the recorded rounds can't be replayed. */
   summaryError: string | null;
+  /**
+   * Everyone who has played in the game, including people who joined late; `seatOrder` has only
+   * those who started. Set by functions. Absent on games from before this was kept, which have
+   * `seatOrder` alone.
+   */
+  playerIds?: PlayerId[];
   /** Set by functions while a read-only link for watching the game is switched on. */
   shareCode?: string | null;
 }

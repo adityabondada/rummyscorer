@@ -10,6 +10,7 @@ import {
   parseGame,
   isLeagueAdmin,
   parseLeague,
+  playersInGame,
   parsePlayer,
   parseRound,
   roundDocToEngine,
@@ -48,6 +49,76 @@ const penaltyRound = (
   entries,
 });
 const pts = (points: number) => ({ kind: 'points' as const, points });
+
+describe('who has played in a game', () => {
+  const doc = (rejoins: unknown[], scrapped = false) =>
+    ({
+      seq: 1,
+      winnerId: 'a',
+      penalty: null,
+      entries: {},
+      rejoins,
+      scrapped: scrapped ? { by: 'u', at: 1, reason: 'x' } : null,
+      updatedBy: 'u',
+      updatedAt: 1,
+      history: [],
+    }) as never;
+
+  it('is those who started, then anyone who joined late', () => {
+    expect(
+      playersInGame(
+        ['a', 'b'],
+        [
+          doc([{ playerId: 'c', seatIndex: -1, join: { drops: 1 } }]),
+          doc([{ playerId: 'a', seatIndex: 0 }]),
+        ],
+      ),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  it('leaves out a joiner whose round was scrapped, and never lists anyone twice', () => {
+    const join = { playerId: 'c', seatIndex: -1, join: { drops: 1 } };
+    expect(playersInGame(['a', 'b'], [doc([join], true)])).toEqual(['a', 'b']);
+    expect(playersInGame(['a', 'b'], [doc([join]), doc([join])])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reads a late join back from storage, and a plain rejoin as before', () => {
+    const stored = {
+      seq: 1,
+      winnerId: 'a',
+      penalty: null,
+      entries: {},
+      rejoins: [
+        { playerId: 'c', seatIndex: -1, join: { drops: 2 } },
+        { playerId: 'b', seatIndex: 1 },
+      ],
+      scrapped: null,
+      updatedBy: 'u',
+      updatedAt: 1,
+      history: [],
+    };
+    expect(parseRound(stored).rejoins).toEqual([
+      { playerId: 'c', seatIndex: -1, join: { drops: 2 } },
+      { playerId: 'b', seatIndex: 1 },
+    ]);
+  });
+
+  it('reads the list of everyone who played, when a game has one', () => {
+    const game = {
+      settings: DEFAULT_SETTINGS,
+      seatOrder: ['a', 'b'],
+      playerIds: ['a', 'b', 'c'],
+      status: 'inProgress',
+      createdBy: 'u',
+      createdAt: 1,
+      split: null,
+      summary: null,
+      summaryError: null,
+    };
+    expect(parseGame(game).playerIds).toEqual(['a', 'b', 'c']);
+    expect(parseGame({ ...game, playerIds: undefined }).playerIds).toBeUndefined();
+  });
+});
 
 describe('parsing stored documents', () => {
   it('reads a league', () => {

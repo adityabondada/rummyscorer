@@ -101,6 +101,14 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 
 - A player whose total goes past the limit is marked out and greyed out for later rounds.
 
+**Joining mid-game**
+
+- People who were not in the game when it started can join between rounds, from "Someone joining?" under the round button (once a round has been played). Any league player not in the game can be picked, several at once, and a new guest can be added to the league on the spot.
+- Each pays the buy-in, which goes in the pot, and comes in one point above the highest active score; everyone joining in the same break comes in on the same score. The number of drops each starts with is chosen when they join (from none to the game's maximum, all of them to begin with).
+- They sit just before whoever deals next, so who deals and who gets the opening card don't change, and the new player gets their turn to deal last in the rotation. Several joiners go in the order listed, the last right before the dealer. They are marked "Joined after round N" on the score board.
+- Like a rejoin, a join belongs to the round before the break and is undone if that round is scrapped, it isn't possible in the round that ends the game, and it is closed once the entry score would be past the limit.
+- Everyone who played, joiners included, is kept on the game (`playerIds`, written by the server) so the game list, merging guests, removing players and the log all count them.
+
 **Rejoin**
 
 - An eliminated player can rejoin by paying the buy-in again, which is added to the pot.
@@ -202,7 +210,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 
 - `leagues/{leagueId}` — name, adminUid (the owner), adminUids (other admins, absent on older leagues), inviteCode, memberUids, createdAt.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
-- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
+- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), playerIds (everyone who played, written by functions), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId (null in a penalty round), penalty (nullable: player, points, reason; absent on rounds saved before penalty rounds existed), entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.

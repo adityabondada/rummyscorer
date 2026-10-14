@@ -371,3 +371,133 @@ export function SplitModal({
     </Modal>
   );
 }
+
+/**
+ * Adds people who were not in the game when it started. Pick who, and how many drops each starts
+ * with; they all pay the buy-in and enter on the same score, and sit just before whoever deals next.
+ */
+export function JoinModal({
+  state,
+  names,
+  candidates,
+  entryScore,
+  onConfirm,
+  onAddGuest,
+  onClose,
+}: {
+  state: GameState;
+  names: Record<string, string>;
+  /** League players who are not in this game. */
+  candidates: { id: string; name: string }[];
+  entryScore: number;
+  onConfirm: (joins: { playerId: string; drops: number }[]) => Promise<string | null>;
+  /** Adds a new guest to the league; resolves to a message when it can't. */
+  onAddGuest: (name: string) => Promise<string | null>;
+  onClose: () => void;
+}) {
+  const { maxDrops, buyIn } = state.settings;
+  const [picked, setPicked] = useState<Record<string, number>>({});
+  const [guest, setGuest] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const nameOf = (id: string | null) => (id ? (names[id] ?? '?') : '?');
+  const count = Object.keys(picked).length;
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const { [id]: was, ...rest } = p;
+      return was === undefined ? { ...p, [id]: maxDrops } : rest;
+    });
+
+  return (
+    <Modal title="Add players" onClose={onClose}>
+      <div className="space-y-3">
+        <p className="text-sm text-slate-600">
+          Each pays the ${buyIn} buy-in, which goes in the pot, and comes in on{' '}
+          <strong>{entryScore}</strong> points. They sit just before{' '}
+          <strong>{nameOf(state.dealerId)}</strong>, so {nameOf(state.dealerId)} still deals and{' '}
+          <strong>{nameOf(state.firstPlayerId)}</strong> still gets the opening card.
+        </p>
+        {candidates.length === 0 ? (
+          <p className="text-sm text-slate-500">Everyone in the league is already in this game.</p>
+        ) : (
+          <ul className="space-y-1" aria-label="Players to add">
+            {candidates.map((c) => {
+              const on = picked[c.id] !== undefined;
+              return (
+                <li
+                  key={c.id}
+                  className="flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 ring-1 ring-slate-200"
+                >
+                  <label className="flex min-w-0 items-center gap-2 text-sm">
+                    <input type="checkbox" checked={on} onChange={() => toggle(c.id)} />
+                    <span className="truncate font-medium">{c.name}</span>
+                  </label>
+                  {on && (
+                    <label className="flex items-center gap-1 text-xs text-slate-600">
+                      Drops
+                      <select
+                        aria-label={`Drops for ${c.name}`}
+                        className="rounded border border-slate-300 bg-white px-1 py-0.5 text-sm"
+                        value={picked[c.id]}
+                        onChange={(e) => setPicked({ ...picked, [c.id]: Number(e.target.value) })}
+                      >
+                        {Array.from({ length: maxDrops + 1 }, (_, n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <form
+          className="flex items-end gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const problem = await onAddGuest(guest);
+            if (problem) setError(problem);
+            else {
+              setError('');
+              setGuest('');
+            }
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <Field
+              label="Someone new?"
+              placeholder="Name"
+              value={guest}
+              maxLength={40}
+              onChange={(e) => setGuest(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="secondary" disabled={!guest.trim()}>
+            Add to league
+          </Button>
+        </form>
+        <ErrorText>{error}</ErrorText>
+        <Button
+          className="w-full"
+          disabled={busy || count === 0}
+          onClick={async () => {
+            setBusy(true);
+            const problem = await onConfirm(
+              Object.entries(picked).map(([playerId, drops]) => ({ playerId, drops })),
+            );
+            if (problem) {
+              setError(problem);
+              setBusy(false);
+            }
+          }}
+        >
+          {count === 0 ? 'Pick who to add' : `Add ${count} for $${count * buyIn}`}
+        </Button>
+      </div>
+    </Modal>
+  );
+}

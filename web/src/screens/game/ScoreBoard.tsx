@@ -63,6 +63,7 @@ function RaceRow({
   const out = moments.includes('out');
   const back = moments.includes('back');
   const id = player.id;
+  const joinedAfter = state.rounds.find((r) => r.joined?.includes(id))?.seq;
   // The same joke for the same round and player, on every screen watching the game.
   const key = `${state.rounds[state.rounds.length - 1]?.seq ?? 0}:${id}`;
 
@@ -82,6 +83,7 @@ function RaceRow({
               {id === state.dealerId && <Badge tone="green">Deals</Badge>}
               {id === state.firstPlayerId && <Badge>Plays first</Badge>}
               {!player.active && <Badge tone="red">Out</Badge>}
+              {joinedAfter !== undefined && <Badge>Joined after round {joinedAfter}</Badge>}
               {player.rejoins > 0 && (
                 <Badge tone="amber">
                   Rejoined{player.rejoins > 1 ? ` ×${player.rejoins}` : ''}

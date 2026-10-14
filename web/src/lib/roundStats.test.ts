@@ -2,7 +2,14 @@ import { DEFAULT_SETTINGS } from '@rummy/engine';
 import type { GameDoc, GameSummaryDoc } from '@rummy/data';
 import { describe, expect, it } from 'vitest';
 import type { GameRow } from './night';
-import { leaderboard, missingRoundStats, streakHighlights, streaks, trends } from './stats';
+import {
+  leaderboard,
+  missingRecap,
+  missingRoundStats,
+  streakHighlights,
+  streaks,
+  trends,
+} from './stats';
 
 interface Stat {
   roundsPlayed?: number;
@@ -223,5 +230,26 @@ describe('rounds won over time', () => {
   it('counts a summary without round numbers as none', () => {
     const { points } = trends([game(1, ['a'], { a: {}, b: { roundsWon: 2 } })]);
     expect(points[0]!.roundWins).toEqual({ a: 0, b: 2 });
+  });
+});
+
+describe('missingRecap', () => {
+  it('is true when a finished game has no saved story, and false once it has one', () => {
+    const bare = game(1, ['a'], { a: { roundsWon: 1 }, b: {} });
+    expect(missingRecap([bare])).toBe(true);
+    const told = {
+      ...bare,
+      doc: {
+        ...bare.doc,
+        summary: { ...bare.doc.summary!, recap: { headline: 'h', lines: ['l'] } },
+      },
+    };
+    expect(missingRecap([told])).toBe(false);
+  });
+
+  it('ignores games with no summary, and an empty list', () => {
+    const open = game(1, ['a'], { a: { roundsWon: 1 }, b: {} });
+    expect(missingRecap([{ ...open, doc: { ...open.doc, summary: null } }])).toBe(false);
+    expect(missingRecap([])).toBe(false);
   });
 });

@@ -218,6 +218,10 @@ export const missingRoundStats = (games: GameRow[]): boolean =>
       Object.values(doc.summary.players).some((p) => p.roundsWon === undefined),
   );
 
+/** True when any finished game has no saved story of how it went yet. */
+export const missingRecap = (games: GameRow[]): boolean =>
+  games.some(({ doc }) => doc.summary !== null && doc.summary.recap === undefined);
+
 export interface TrendPoint {
   /** 1 for the first game in the range. */
   game: number;

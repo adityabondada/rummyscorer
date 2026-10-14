@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { recomputeLeague } from '../api';
 import { useGames } from '../hooks';
 import { EmptyState } from '../suits';
@@ -7,6 +7,7 @@ import {
   filterGames,
   isBackwards,
   leaderboard,
+  missingRecap,
   missingRoundStats,
   rangeFor,
   trends,
@@ -56,13 +57,16 @@ export function StatsTab() {
 
   // Games finished before rounds won were counted have no such numbers. Ask for them to be worked
   // out, once; the summaries then update by themselves.
-  const olderGames = useMemo(
-    () => missingRoundStats(filterGames(games.value, rangeFor('all', 0))),
-    [games.value],
-  );
+  const olderGames = useMemo(() => {
+    const finished = filterGames(games.value, rangeFor('all', 0));
+    return missingRoundStats(finished) || missingRecap(finished);
+  }, [games.value]);
   const [update, setUpdate] = useState<'idle' | 'running' | 'failed'>('idle');
+  // Once per visit, so a game that can't be updated never makes this ask again and again.
+  const asked = useRef(false);
   useEffect(() => {
-    if (games.loading || !olderGames || update !== 'idle') return;
+    if (games.loading || !olderGames || update !== 'idle' || asked.current) return;
+    asked.current = true;
     setUpdate('running');
     recomputeLeague({ leagueId }).then(
       () => setUpdate('idle'),

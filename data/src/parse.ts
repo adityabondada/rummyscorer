@@ -121,7 +121,15 @@ function parseEntries(value: unknown): Record<string, RoundEntry> {
 function parseRejoins(value: unknown): Rejoin[] {
   return arr(value ?? [], 'rejoins').map((r, i) => {
     const d = obj(r, `rejoins[${i}]`);
-    return { playerId: str(d.playerId, 'playerId'), seatIndex: num(d.seatIndex, 'seatIndex') };
+    const join =
+      d.join === undefined || d.join === null
+        ? undefined
+        : { drops: num(obj(d.join, `rejoins[${i}].join`).drops, 'drops') };
+    return {
+      playerId: str(d.playerId, 'playerId'),
+      seatIndex: num(d.seatIndex, 'seatIndex'),
+      ...(join ? { join } : {}),
+    };
   });
 }
 
@@ -233,6 +241,14 @@ function parseSummary(value: unknown): GameSummaryDoc {
         parseStats(s, `players.${id}`),
       ]),
     ),
+    ...(d.recap === undefined || d.recap === null
+      ? {}
+      : {
+          recap: {
+            headline: str(obj(d.recap, 'recap').headline, 'recap.headline'),
+            lines: strings(obj(d.recap, 'recap').lines, 'recap.lines'),
+          },
+        }),
     computedAt: num(d.computedAt, 'computedAt'),
   };
 }
@@ -253,6 +269,7 @@ export function parseGame(data: unknown): GameDoc {
     }),
     summary: nullable(d.summary, parseSummary),
     summaryError: nullable(d.summaryError, (v) => str(v, 'summaryError')),
+    ...(d.playerIds === undefined ? {} : { playerIds: strings(d.playerIds, 'playerIds') }),
     ...(d.shareCode === undefined
       ? {}
       : { shareCode: nullable(d.shareCode, (v) => str(v, 'shareCode')) }),

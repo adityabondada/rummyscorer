@@ -38,22 +38,28 @@ interface GameRef {
   seatOrder: string[];
 }
 
-/** Games whose starting seat order includes this player. */
+/** Games this player has been in: those they started in, and those they joined late. */
 async function gamesWith(
   tx: Transaction,
   db: Firestore,
   leagueId: string,
   playerId: string,
 ): Promise<GameRef[]> {
-  const snap = await tx.get(
-    db
-      .collection(`leagues/${leagueId}/${COLLECTIONS.games}`)
-      .where('seatOrder', 'array-contains', playerId),
-  );
-  return snap.docs.map((doc) => ({
-    id: doc.id,
-    seatOrder: (doc.data().seatOrder as string[]) ?? [],
-  }));
+  const games = db.collection(`leagues/${leagueId}/${COLLECTIONS.games}`);
+  const [started, joined] = await Promise.all([
+    tx.get(games.where('seatOrder', 'array-contains', playerId)),
+    tx.get(games.where('playerIds', 'array-contains', playerId)),
+  ]);
+  const byId = new Map<string, GameRef>();
+  for (const doc of [...started.docs, ...joined.docs]) {
+    const data = doc.data();
+    const ids = new Set<string>([
+      ...((data.seatOrder as string[]) ?? []),
+      ...((data.playerIds as string[]) ?? []),
+    ]);
+    byId.set(doc.id, { id: doc.id, seatOrder: [...ids] });
+  }
+  return [...byId.values()];
 }
 
 /** Refreshes the cached summaries after a merge or unmerge changed who played in them. */

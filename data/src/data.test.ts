@@ -10,6 +10,7 @@ import {
   parseGame,
   isLeagueAdmin,
   parseLeague,
+  playersInGame,
   parsePlayer,
   parseRound,
   roundDocToEngine,
@@ -48,6 +49,120 @@ const penaltyRound = (
   entries,
 });
 const pts = (points: number) => ({ kind: 'points' as const, points });
+
+describe('the story kept with a finished game', () => {
+  const finishedState = () => replay(gameInput(game(), finishedRounds()));
+  const finishedRounds = (): RoundDoc[] => [
+    newRoundDoc({ seq: 1, winnerId: 'A', entries: { B: pts(10), C: pts(51) } }, 'u1', 1),
+    newRoundDoc({ seq: 2, winnerId: 'A', entries: { B: pts(45) } }, 'u1', 2),
+  ];
+  const names = { A: 'Asha', B: 'Bo', C: 'Cy' };
+
+  it('is saved in the summary when the names are known', () => {
+    const summary = summaryFromState(finishedState(), 1, names)!;
+    expect(summary.recap!.headline).toContain('Asha');
+    expect(summary.recap!.lines.length).toBeGreaterThan(0);
+    expect(summary.recap!.lines.length).toBeLessThanOrEqual(3);
+  });
+
+  it('is left out of the summary when no names are given, so the numbers alone are unchanged', () => {
+    expect(summaryFromState(finishedState(), 1)!.recap).toBeUndefined();
+  });
+
+  it('is the same every time it is worked out', () => {
+    expect(summaryFromState(finishedState(), 1, names)!.recap).toEqual(
+      summaryFromState(finishedState(), 99, names)!.recap,
+    );
+  });
+
+  it('survives being stored and read back, and a summary without one still reads', () => {
+    const summary = summaryFromState(finishedState(), 5, names)!;
+    const stored = game({ status: 'finished', summary });
+    expect(parseGame(JSON.parse(JSON.stringify(stored))).summary!.recap).toEqual(summary.recap);
+    const { recap: _gone, ...old } = summary;
+    void _gone;
+    const back = parseGame(JSON.parse(JSON.stringify({ ...stored, summary: old })));
+    expect(back.summary!.recap).toBeUndefined();
+    expect(back.summary!.pot).toBe(summary.pot);
+  });
+
+  it('is refused when it is not a headline and some lines', () => {
+    const summary = summaryFromState(finishedState(), 5, names)!;
+    const bad = JSON.parse(JSON.stringify(game({ status: 'finished', summary })));
+    bad.summary.recap = { headline: 'x', lines: 'not a list' };
+    expect(() => parseGame(bad)).toThrow();
+  });
+});
+
+describe('who has played in a game', () => {
+  const doc = (rejoins: unknown[], scrapped = false) =>
+    ({
+      seq: 1,
+      winnerId: 'a',
+      penalty: null,
+      entries: {},
+      rejoins,
+      scrapped: scrapped ? { by: 'u', at: 1, reason: 'x' } : null,
+      updatedBy: 'u',
+      updatedAt: 1,
+      history: [],
+    }) as never;
+
+  it('is those who started, then anyone who joined late', () => {
+    expect(
+      playersInGame(
+        ['a', 'b'],
+        [
+          doc([{ playerId: 'c', seatIndex: -1, join: { drops: 1 } }]),
+          doc([{ playerId: 'a', seatIndex: 0 }]),
+        ],
+      ),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  it('leaves out a joiner whose round was scrapped, and never lists anyone twice', () => {
+    const join = { playerId: 'c', seatIndex: -1, join: { drops: 1 } };
+    expect(playersInGame(['a', 'b'], [doc([join], true)])).toEqual(['a', 'b']);
+    expect(playersInGame(['a', 'b'], [doc([join]), doc([join])])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('reads a late join back from storage, and a plain rejoin as before', () => {
+    const stored = {
+      seq: 1,
+      winnerId: 'a',
+      penalty: null,
+      entries: {},
+      rejoins: [
+        { playerId: 'c', seatIndex: -1, join: { drops: 2 } },
+        { playerId: 'b', seatIndex: 1 },
+      ],
+      scrapped: null,
+      updatedBy: 'u',
+      updatedAt: 1,
+      history: [],
+    };
+    expect(parseRound(stored).rejoins).toEqual([
+      { playerId: 'c', seatIndex: -1, join: { drops: 2 } },
+      { playerId: 'b', seatIndex: 1 },
+    ]);
+  });
+
+  it('reads the list of everyone who played, when a game has one', () => {
+    const game = {
+      settings: DEFAULT_SETTINGS,
+      seatOrder: ['a', 'b'],
+      playerIds: ['a', 'b', 'c'],
+      status: 'inProgress',
+      createdBy: 'u',
+      createdAt: 1,
+      split: null,
+      summary: null,
+      summaryError: null,
+    };
+    expect(parseGame(game).playerIds).toEqual(['a', 'b', 'c']);
+    expect(parseGame({ ...game, playerIds: undefined }).playerIds).toBeUndefined();
+  });
+});
 
 describe('parsing stored documents', () => {
   it('reads a league', () => {

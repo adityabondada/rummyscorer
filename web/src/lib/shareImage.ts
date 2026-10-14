@@ -1,4 +1,5 @@
 import { displayOrder, simplifyTransfers, summarize, type GameState } from '@rummy/engine';
+import { buildRecap, type GameRecap } from '@rummy/data';
 import type { Night } from './night';
 import { raceView, type RaceTone } from './race';
 
@@ -28,7 +29,28 @@ export interface CardModel {
   rows: CardRow[];
   /** "Bo pays Cy $20", for a finished game. */
   payments: string[];
+  /** The light-hearted story of a finished game, already broken into lines that fit. */
+  story: string[];
 }
+
+/** Breaks text into lines of at most `width` characters, at spaces. */
+export function wrapLines(text: string, width: number): string[] {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && `${line} ${word}`.length > width) {
+      out.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) out.push(line);
+  return out;
+}
+
+/** How many characters of the story fit across the picture. */
+const STORY_WIDTH = 56;
 
 const ordinal = (n: number) =>
   `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
@@ -41,6 +63,8 @@ export function buildGameCard(args: {
   names: Record<string, string>;
   startedAt?: number | null;
   locale?: string;
+  /** The story saved with the game; told afresh when there isn't one. */
+  recap?: GameRecap | null;
 }): CardModel {
   const { leagueName, state, names, startedAt, locale } = args;
   const nameOf = (id: string) => names[id] ?? '?';
@@ -77,6 +101,7 @@ export function buildGameCard(args: {
     });
     const winners = summary.winnerIds.map(nameOf).join(' & ');
     const rounds = `${summary.rounds} round${summary.rounds === 1 ? '' : 's'}`;
+    const recap = args.recap ?? buildRecap(state, names);
     return {
       kind: 'finished',
       league: leagueName,
@@ -88,6 +113,7 @@ export function buildGameCard(args: {
       payments: simplifyTransfers(summary.net).map(
         (t) => `${nameOf(t.from)} pays ${nameOf(t.to)} $${t.amount}`,
       ),
+      story: recap ? recap.lines.map((l) => wrapLines(l, STORY_WIDTH)).flat() : [],
     };
   }
 
@@ -115,6 +141,7 @@ export function buildGameCard(args: {
       };
     }),
     payments: [],
+    story: [],
   };
 }
 
@@ -176,6 +203,7 @@ export function buildNightCard(args: {
       };
     }),
     payments: night.transfers.map((t) => `${nameOf(t.from)} pays ${nameOf(t.to)} $${t.amount}`),
+    story: [],
   };
 }
 
@@ -210,11 +238,14 @@ const ROW_H = 118;
 const PAY_HEAD_H = 84;
 const PAY_ROW_H = 50;
 const FOOTER_H = 130;
+const STORY_HEAD_H = 84;
+const STORY_LINE_H = 44;
 
 /** How tall the picture is for this content. */
 export function cardHeight(model: CardModel): number {
+  const story = model.story.length > 0 ? STORY_HEAD_H + model.story.length * STORY_LINE_H + 30 : 0;
   const pay = model.payments.length > 0 ? PAY_HEAD_H + model.payments.length * PAY_ROW_H + 30 : 0;
-  return HEADER_H + HEADLINE_H + model.rows.length * ROW_H + 20 + pay + FOOTER_H;
+  return HEADER_H + HEADLINE_H + model.rows.length * ROW_H + 20 + story + pay + FOOTER_H;
 }
 
 /** The parts of the canvas drawing API that are used, so tests can pass a recording stand-in. */
@@ -337,6 +368,20 @@ export function drawGameCard(ctx: Ctx, model: CardModel): void {
       ctx.fill();
     }
     y += ROW_H;
+  }
+
+  // How it went.
+  if (model.story.length > 0) {
+    y += 20;
+    ctx.fillStyle = LINE;
+    ctx.fillRect(PAD, y, W - PAD * 2, 3);
+    text(ctx, 'How it went', PAD, y + 50, { size: 30, weight: 600, color: MUTED });
+    let sy = y + STORY_HEAD_H;
+    for (const line of model.story) {
+      text(ctx, line, PAD, sy + 18, { size: 32, color: INK, max: W - PAD * 2 });
+      sy += STORY_LINE_H;
+    }
+    y = sy + 10;
   }
 
   // Who pays whom.

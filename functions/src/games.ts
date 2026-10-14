@@ -40,7 +40,11 @@ export async function deleteGame(
     logEntry('gameDeleted', uid, now, {
       gameId,
       startedAt: typeof data.createdAt === 'number' ? data.createdAt : null,
-      players: Array.isArray(data.seatOrder) ? data.seatOrder.length : null,
+      players: Array.isArray(data.playerIds)
+        ? data.playerIds.length
+        : Array.isArray(data.seatOrder)
+          ? data.seatOrder.length
+          : null,
       rounds,
       finished: data.status === 'finished',
     }),

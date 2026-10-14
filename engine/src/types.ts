@@ -12,6 +12,13 @@ export type RoundEntry =
 export interface Rejoin {
   playerId: PlayerId;
   seatIndex: number;
+  /**
+   * Set when the player was not in the game before and joins late, instead of coming back after
+   * going out. They pay the buy-in, enter one point above the highest score, start with `drops`
+   * drops, and sit just before whoever deals next, so the dealer and the opening card don't
+   * change. `seatIndex` is ignored for them.
+   */
+  join?: { drops: number };
 }
 
 export interface ScrapInfo {
@@ -102,6 +109,10 @@ export interface RoundRecord {
   entries: Record<PlayerId, RoundEntry>;
   eliminated: PlayerId[];
   rejoined: PlayerId[];
+  /** Players who joined the game late, after this round. */
+  joined: PlayerId[];
+  /** Every player's score once this round and its rejoins were applied, for telling the story. */
+  totals: Record<PlayerId, number>;
 }
 
 export type GameOutcome = 'outright' | 'split';

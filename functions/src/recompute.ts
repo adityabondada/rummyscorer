@@ -9,6 +9,7 @@ import {
   parseGame,
   parsePlayer,
   parseRound,
+  playersInGame,
   playersPath,
   roundsPath,
   summaryFromState,
@@ -22,6 +23,7 @@ import { readLeague, requireMember, stringArg } from './access';
 export type RecomputeResult = 'updated' | 'unchanged' | 'missing';
 
 interface Derived {
+  playerIds: string[];
   status: 'inProgress' | 'finished';
   summary: GameSummaryDoc | null;
   summaryError: string | null;
@@ -76,6 +78,17 @@ export async function recomputeGame(
     if (!gameSnap.exists) return 'missing';
     const raw = gameSnap.data() ?? {};
 
+    // Who has played, from the stored rounds, so it is right even for a game that can't be replayed.
+    const playerIds = (() => {
+      try {
+        const game = parseGame({ ...raw, summary: null, summaryError: null });
+        const rounds = roundsSnap.docs.map((d) => parseRound(d.data()));
+        return playersInGame(game.seatOrder, rounds);
+      } catch {
+        return Array.isArray(raw.seatOrder) ? (raw.seatOrder as string[]) : [];
+      }
+    })();
+
     let derived: Derived;
     try {
       // The stored summary is ignored here so an old summary shape can't block a recompute.
@@ -84,17 +97,24 @@ export async function recomputeGame(
         roundsSnap.docs.map((d) => d.data()),
         playersSnap.docs.map((d) => [d.id, d.data()] as [string, unknown]),
       );
+      const names: Record<string, string> = {};
+      for (const doc of playersSnap.docs) {
+        const name = doc.data().name;
+        if (typeof name === 'string') names[doc.id] = name;
+      }
       derived = {
+        playerIds,
         status: state.status,
-        summary: summaryFromState(state, now),
+        summary: summaryFromState(state, now, names),
         summaryError: null,
       };
     } catch (error) {
       if (!(error instanceof EngineError || error instanceof DataError)) throw error;
-      derived = { status: 'inProgress', summary: null, summaryError: error.message };
+      derived = { playerIds, status: 'inProgress', summary: null, summaryError: error.message };
     }
 
     const unchanged =
+      isDeepStrictEqual(raw.playerIds ?? null, derived.playerIds) &&
       raw.status === derived.status &&
       (raw.summaryError ?? null) === derived.summaryError &&
       isDeepStrictEqual(withoutTime(raw.summary ?? null), withoutTime(derived.summary));

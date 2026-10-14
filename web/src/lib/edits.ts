@@ -112,6 +112,43 @@ export function planRejoin(
   return problem ? fail(problem) : { ok: true, value: { id: latest.id, doc } };
 }
 
+/**
+ * Adds people who were not in the game, after the latest round. Each pays the buy-in, enters one
+ * point above the highest score with the chosen number of drops, and sits just before whoever
+ * deals next. Like a rejoin, it belongs to the round before the break it happens in.
+ */
+export function planJoin(
+  game: GameDoc,
+  rows: RoundRow[],
+  players: PlayerMap,
+  joins: { playerId: PlayerId; drops: number }[],
+  uid: string,
+  now: number,
+): Plan<RoundWrite> {
+  const latest = liveRows(rows).at(-1);
+  if (!latest) return fail('There is no round to join after');
+  if (joins.length === 0) return fail('Pick at least one player');
+  const stored = storedIds(game, players);
+  const doc = changeRoundDoc(
+    latest.doc,
+    {
+      rejoins: [
+        ...latest.doc.rejoins,
+        ...joins.map((j) => ({
+          playerId: stored(j.playerId),
+          seatIndex: -1,
+          join: { drops: j.drops },
+        })),
+      ],
+    },
+    uid,
+    now,
+  );
+  const next = rows.map((r) => (r.id === latest.id ? { id: r.id, doc } : r));
+  const problem = replays(game, next, players);
+  return problem ? fail(problem) : { ok: true, value: { id: latest.id, doc } };
+}
+
 /** Rounds whose scrapped state differs between two versions, as documents to write. */
 function diffScrapped(rows: RoundRow[], after: Round[], uid: string, now: number): RoundWrite[] {
   const bySeqAfter = new Map(after.map((r) => [r.seq, r]));

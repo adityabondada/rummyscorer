@@ -1,14 +1,16 @@
-import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { displayOrder, rejoinEligibility, type Round } from '@rummy/engine';
-import { gamePath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
+import { displayOrder, joinEligibility, rejoinEligibility, type Round } from '@rummy/engine';
+import { gamePath, playersPath, roundPath, roundsPath, roundDocToEngine } from '@rummy/data';
 import { deleteGame, errorMessage } from '../api';
 import { db } from '../firebase';
 import { useLiveGame } from '../hooks';
+import { duplicateMessage } from '../lib/names';
 import {
   planEditRound,
   planNewRound,
+  planJoin,
   planRejoin,
   planRestore,
   planRollback,
@@ -28,7 +30,14 @@ import {
   type RoundRow,
 } from '../lib/game';
 import { Badge, Button, Card, ErrorText, Loading, Page } from '../ui';
-import { ConfirmModal, RejoinModal, ReasonModal, RollbackModal, SplitModal } from './game/Modals';
+import {
+  ConfirmModal,
+  JoinModal,
+  RejoinModal,
+  ReasonModal,
+  RollbackModal,
+  SplitModal,
+} from './game/Modals';
 import { ResultCard } from './game/ResultCard';
 import { RoundEntry } from './game/RoundEntry';
 import { RoundList } from './game/RoundList';
@@ -43,6 +52,7 @@ type Dialog =
   | { kind: 'scrap' }
   | { kind: 'rollback' }
   | { kind: 'rejoin'; playerId: string; entryScore: number }
+  | { kind: 'join'; entryScore: number }
   | { kind: 'split' }
   | { kind: 'delete' }
   | { kind: 'share' };
@@ -76,21 +86,37 @@ export function GameScreen() {
 
   // Eliminated players who could rejoin. Their entry score is worked out as it stood right after
   // the latest round, before any rejoins already attached to it.
-  const rejoinOptions = useMemo(() => {
+  const { rejoinOptions, joinCheck } = useMemo(() => {
+    const none = { rejoinOptions: [], joinCheck: null };
     const latest = liveRows(rows).at(-1);
-    if (!game || !state || state.status === 'finished' || !latest) return [];
+    if (!game || !state || state.status === 'finished' || !latest) return none;
     const stripped = rows.map((r) =>
       r.id === latest.id ? { ...r, doc: { ...r.doc, rejoins: [] } } : r,
     );
     try {
       const base = gameState({ ...game, split: null }, stripped, players);
-      return displayOrder(state)
-        .filter((id) => !state.players[id]!.active)
-        .map((id) => ({ id, check: rejoinEligibility(base, id) }));
+      return {
+        rejoinOptions: displayOrder(state)
+          .filter((id) => !state.players[id]!.active)
+          .map((id) => ({ id, check: rejoinEligibility(base, id) })),
+        joinCheck: joinEligibility(base),
+      };
     } catch {
-      return [];
+      return none;
     }
   }, [game, rows, state, players]);
+
+  // League players who are not in this game and could be added to it.
+  const joinCandidates = useMemo(
+    () =>
+      state
+        ? Object.entries(players)
+            .filter(([id, p]) => !p.retired && p.mergedInto === null && !(id in state.players))
+            .map(([id, p]) => ({ id, name: p.name }))
+            .sort((a, b) => a.name.localeCompare(b.name))
+        : [],
+    [players, state],
+  );
 
   if (live.loading) return <Loading />;
   if (!game) {
@@ -277,6 +303,31 @@ export function GameScreen() {
             </Card>
           )}
 
+          {joinCheck && state.rounds.length > 0 && (
+            <Card className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0">
+                  <h2 className="font-semibold">Someone joining?</h2>
+                  <span className="block text-xs text-slate-500">
+                    {joinCheck.ok
+                      ? `They come in on ${joinCheck.entryScore} for $${state.settings.buyIn}, and sit just before ${names[state.dealerId!] ?? '?'}.`
+                      : joinCheck.reason}
+                  </span>
+                </span>
+                <Button
+                  variant="secondary"
+                  small
+                  disabled={!joinCheck.ok}
+                  onClick={() =>
+                    joinCheck.ok && setDialog({ kind: 'join', entryScore: joinCheck.entryScore })
+                  }
+                >
+                  Add players
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {Object.values(state.players).filter((p) => p.active).length >= 2 && (
             <Button
               variant="secondary"
@@ -291,7 +342,7 @@ export function GameScreen() {
 
       {state && finished && (
         <>
-          <ResultCard state={state} names={names} />
+          <ResultCard state={state} names={names} recap={game.summary?.recap} />
           {splitFinished ? (
             <Button variant="danger" onClick={() => void cancelSplit()}>
               Cancel the split and reopen the game
@@ -393,6 +444,34 @@ export function GameScreen() {
         />
       )}
 
+      {dialog?.kind === 'join' && state && !finished && (
+        <JoinModal
+          state={state}
+          names={names}
+          candidates={joinCandidates}
+          entryScore={dialog.entryScore}
+          onConfirm={(joins) => apply(planJoin(game, rows, players, joins, uid, now()))}
+          onAddGuest={async (name) => {
+            const taken = duplicateMessage(players, name);
+            if (taken) return taken;
+            try {
+              await addDoc(collection(db, playersPath(leagueId)), {
+                name: name.trim(),
+                linkedUid: null,
+                retired: false,
+                mergedInto: null,
+                createdBy: uid,
+                createdAt: now(),
+              });
+              return null;
+            } catch (e) {
+              return errorMessage(e);
+            }
+          }}
+          onClose={close}
+        />
+      )}
+
       {dialog?.kind === 'delete' && (
         <ConfirmModal
           title="Delete this game?"
@@ -419,6 +498,7 @@ export function GameScreen() {
           state={state}
           names={names}
           startedAt={game.createdAt}
+          recap={game.summary?.recap}
           shareCode={game.shareCode}
           onClose={close}
         />

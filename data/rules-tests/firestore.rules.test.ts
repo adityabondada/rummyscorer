@@ -248,6 +248,11 @@ describe('games', () => {
     await assertFails(updateDoc(ref('member'), { summaryError: 'boom' }));
   });
 
+  it('keeps the list of everyone who played out of client hands', async () => {
+    await assertFails(updateDoc(ref('member'), { playerIds: ['p1', 'p2', 'p3'] }));
+    await assertFails(setDoc(ref('member', 'with-ids'), { ...newGame, playerIds: ['p1', 'p2'] }));
+  });
+
   it('keeps the share link out of client hands, so only the function that checks membership makes one', async () => {
     await assertFails(updateDoc(ref('member'), { shareCode: 'AAAAAAAAAAAAAAAAAAAAAA' }));
     await assertFails(updateDoc(ref('admin'), { shareCode: null }));
@@ -283,6 +288,14 @@ describe('rounds', () => {
     await assertFails(
       setDoc(ref('outsider', 'r3'), { ...newRound, seq: 3, updatedBy: 'outsider' }),
     );
+  });
+
+  it('can carry someone joining late, as a rejoin with their drops', async () => {
+    const join = { playerId: 'p9', seatIndex: -1, join: { drops: 1 } };
+    await assertSucceeds(
+      setDoc(ref('member', 'with-join'), { ...newRound, seq: 4, rejoins: [join] }),
+    );
+    await assertSucceeds(updateDoc(ref('member'), edited('member', { rejoins: [join] })));
   });
 
   it('must be entered as the caller, unscrapped, with empty history and a valid seq', async () => {

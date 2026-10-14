@@ -254,13 +254,18 @@ export async function removePlayer(
     if (found.linkedUid !== null) {
       throw new HttpsError('failed-precondition', 'Members are removed from the league instead');
     }
-    const played = await tx.get(
-      db.collection(gamesPath(leagueId)).where('seatOrder', 'array-contains', playerId).limit(1),
-    );
+    const [started, joined] = await Promise.all([
+      tx.get(
+        db.collection(gamesPath(leagueId)).where('seatOrder', 'array-contains', playerId).limit(1),
+      ),
+      tx.get(
+        db.collection(gamesPath(leagueId)).where('playerIds', 'array-contains', playerId).limit(1),
+      ),
+    ]);
     const linked = await tx.get(
       db.collection(playersPath(leagueId)).where('mergedInto', '==', playerId).limit(1),
     );
-    if (!played.empty || !linked.empty) {
+    if (!started.empty || !joined.empty || !linked.empty) {
       throw new HttpsError(
         'failed-precondition',
         'They are in games, so they cannot be removed. Retire them instead.',

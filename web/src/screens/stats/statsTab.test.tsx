@@ -34,6 +34,7 @@ function game(n: number, winner: string, withRounds: boolean): GameRow {
     payouts: {},
     rounds: 5,
     players: { a: player('a'), b: player('b') },
+    recap: { headline: 'A wins', lines: ['It happened.'] },
     computedAt: 1,
   };
   return {
@@ -120,6 +121,17 @@ describe('the stats tab', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(recomputeLeague).not.toHaveBeenCalled();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('asks once for games with no saved story to be recalculated, without saying anything about round stats', async () => {
+    const withoutStory = game(4, 'a', true);
+    delete (withoutStory.doc.summary as { recap?: unknown }).recap;
+    games = { loading: false, value: [game(1, 'a', true), withoutStory] };
+    render(<StatsTab />);
+    await waitFor(() => expect(recomputeLeague).toHaveBeenCalledTimes(1));
+    expect(recomputeLeague).toHaveBeenCalledWith({ leagueId: 'L1' });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(recomputeLeague).toHaveBeenCalledTimes(1);
   });
 
   it('asks once for older games to be recalculated, and says so while it works', async () => {

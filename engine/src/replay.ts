@@ -214,6 +214,51 @@ function applyRejoin(
   order.splice(rejoin.seatIndex, 0, rejoin.playerId);
 }
 
+/** Whether someone new could join right now, and at what score. */
+export function joinEligibility(state: GameState): RejoinCheck {
+  if (state.status === 'finished') return { ok: false, reason: 'The game is over' };
+  const entryScore = highestActiveScore(state) + REJOIN_ENTRY_OFFSET;
+  if (entryScore > state.settings.limit) {
+    return { ok: false, reason: 'Joining is closed: the entry score would be past the limit' };
+  }
+  return { ok: true, entryScore };
+}
+
+/**
+ * Adds a player who was not in the game. They sit just before whoever deals next, which keeps the
+ * dealer and the opening card as they were. Several people joining in one break go in the order
+ * given, the last of them being right before the dealer.
+ */
+function applyJoin(state: GameState, join: Rejoin, highest: number, dealerId: PlayerId): void {
+  const { playerId } = join;
+  const { settings } = state;
+  if (state.players[playerId]) throw new EngineError(`${playerId} is already in the game`);
+  const drops = join.join!.drops;
+  if (!Number.isInteger(drops) || drops < 0 || drops > settings.maxDrops) {
+    throw new EngineError(`Drops for ${playerId} must be from 0 to ${settings.maxDrops}`);
+  }
+  const entryScore = highest + REJOIN_ENTRY_OFFSET;
+  if (entryScore > settings.limit) {
+    throw new EngineError('Joining is closed: the entry score would be past the limit');
+  }
+  state.players[playerId] = {
+    id: playerId,
+    total: entryScore,
+    dropsUsed: settings.maxDrops - drops,
+    dropsLeft: drops,
+    active: true,
+    buyIns: 1,
+    rejoins: 0,
+    roundsPlayed: 0,
+    dropsTaken: 0,
+    roundsWon: 0,
+    penalties: 0,
+    eliminated: null,
+  };
+  state.pot += settings.buyIn;
+  state.seatOrder.splice(state.seatOrder.indexOf(dealerId), 0, playerId);
+}
+
 /** Applies one round (and the rejoins after it). Pure: returns a new state, or throws. */
 export function applyRound(prev: GameState, round: Round): GameState {
   if (prev.status === 'finished') throw new EngineError('The game is already over');
@@ -260,6 +305,8 @@ export function applyRound(prev: GameState, round: Round): GameState {
     entries: structuredClone(round.entries),
     eliminated: [],
     rejoined: [],
+    joined: [],
+    totals: {},
   };
 
   for (const id of active) {
@@ -287,7 +334,7 @@ export function applyRound(prev: GameState, round: Round): GameState {
   const rejoins = round.rejoins ?? [];
   if (remaining.length === 0) throw new EngineError('That would put every player out of the game');
   if (remaining.length === 1) {
-    if (rejoins.length > 0) throw new EngineError('The game ended, so nobody can rejoin');
+    if (rejoins.length > 0) throw new EngineError('The game ended, so nobody can rejoin or join');
     state.status = 'finished';
     state.outcome = 'outright';
     state.winnerIds = [remaining[0]!];
@@ -298,14 +345,20 @@ export function applyRound(prev: GameState, round: Round): GameState {
     // Everyone rejoining in the same break enters at the same score.
     const highest = highestActiveScore(state);
     const cursor: DealerCursor = { id: dealerId, skip: new Set() };
-    for (const rejoin of rejoins) {
+    for (const rejoin of rejoins.filter((r) => !r.join)) {
       applyRejoin(state, rejoin, highest, cursor);
       record.rejoined.push(rejoin.playerId);
     }
     state.dealerId = nextActiveAfter(state, cursor.id, cursor.skip);
+    // People joining late sit just before the dealer, so nothing about who deals or opens changes.
+    for (const join of rejoins.filter((r) => r.join)) {
+      applyJoin(state, join, highest, state.dealerId!);
+      record.joined.push(join.playerId);
+    }
     state.firstPlayerId = state.dealerId ? nextActiveAfter(state, state.dealerId) : null;
   }
 
+  for (const [id, player] of Object.entries(state.players)) record.totals[id] = player.total;
   state.rounds.push(record);
   return state;
 }

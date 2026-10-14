@@ -70,3 +70,16 @@ export function changeRoundDoc(
     ],
   };
 }
+
+/**
+ * Everyone who has played in a game, as the ids stored with it: those who started, then anyone who
+ * joined late in a round that has not been scrapped.
+ */
+export function playersInGame(seatOrder: string[], rounds: RoundDoc[]): string[] {
+  const ids = [...seatOrder];
+  for (const round of rounds) {
+    if (round.scrapped) continue;
+    for (const r of round.rejoins) if (r.join && !ids.includes(r.playerId)) ids.push(r.playerId);
+  }
+  return ids;
+}

@@ -24,7 +24,7 @@ const dayLabel = (day: string) =>
 
 function GameLink({ game, names }: { game: GameRow; names: Record<string, string> }) {
   const { doc } = game;
-  const who = doc.seatOrder.map((id) => names[id] ?? '?').join(', ');
+  const who = (doc.playerIds ?? doc.seatOrder).map((id) => names[id] ?? '?').join(', ');
   const winners = doc.summary?.winnerIds.map((id) => names[id] ?? '?').join(' & ');
   return (
     <Link

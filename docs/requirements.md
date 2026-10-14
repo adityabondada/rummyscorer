@@ -70,7 +70,9 @@ The game stores its seat order starting at the dealer (here 3, K, 9, 6), which i
 - Scrapping rounds rolls the dealer back with them.
 - The game screen, the round entry screen and the result list players in the order the line-up was set: first card at the top, the round 1 dealer at the bottom. That order does not change as the deal moves round the table.
 
-**Moments on the score board.** When a round is saved, the race reacts for about two seconds, on every screen that has the game open: a full count (the game's most points in a round, or 80 when there is no cap) slams the score in, flashes and shakes the row and shows a joke in a chip ("Ouch. Cy never saw that coming."); a player who goes out gets an "Out" stamp, a joke and their row greys out; a player who rejoins bounces back in, glows green, and a joke welcomes them back. The jokes come from short lists in `web/src/lib/quips.ts`; the same round and player always pick the same line, so everyone watching sees the same one. Only changes seen while the screen is open count, so opening a game replays nothing. With "reduce motion" switched on, none of it plays.
+**Game recap.** A finished game tells a short, light-hearted story: "How it went" under the winner and on the Share picture, between the scores and who pays whom. It opens with the winner and the pot, then tells up to three of the best things that happened, in this order: someone who went out, bought back in and went out again; a winner who had been out and came back; a comeback from 30 or more points behind; a full count (once, or how many times); who went out first; someone who finished within 10 of the limit; someone who dropped three or more times; a penalty; a very quick or very long game; and never being behind at all. It is worked out from the rounds, with no outside service, using the running score the engine keeps in each round (`totals`; games from before that was kept simply skip the comeback). The story is saved with the game's summary (`summary.recap`, written by the server with the names the players have at that moment), so it reads the same for everyone and doesn't change underneath; it is rewritten whenever the summary is, for example after a round is edited or players are merged. Games summarised before this existed tell it afresh on screen until they are next recomputed. The wording is in `data/src/recap.ts`.
+
+**Moments on the score board.** When a round is saved, the race reacts for about two seconds, on every screen that has the game open, with no messages: a full count (the game's most points in a round, or 80 when there is no cap) slams the score in and flashes and shakes the row; a player who goes out gets an "Out" stamp and their row greys out; a player who rejoins bounces back in and glows green. Only changes seen while the screen is open count, so opening a game replays nothing. With "reduce motion" switched on, none of it plays.
 
 ## Rounds, drops, elimination and rejoin
 
@@ -98,6 +100,14 @@ A round can be entered as a penalty round instead of an ordinary one, when a pla
 **Elimination**
 
 - A player whose total goes past the limit is marked out and greyed out for later rounds.
+
+**Joining mid-game**
+
+- People who were not in the game when it started can join between rounds, from "Someone joining?" under the round button (once a round has been played). Any league player not in the game can be picked, several at once, and a new guest can be added to the league on the spot.
+- Each pays the buy-in, which goes in the pot, and comes in one point above the highest active score; everyone joining in the same break comes in on the same score. The number of drops each starts with is chosen when they join (from none to the game's maximum, all of them to begin with).
+- They sit just before whoever deals next, so who deals and who gets the opening card don't change, and the new player gets their turn to deal last in the rotation. Several joiners go in the order listed, the last right before the dealer. They are marked "Joined after round N" on the score board.
+- Like a rejoin, a join belongs to the round before the break and is undone if that round is scrapped, it isn't possible in the round that ends the game, and it is closed once the entry score would be past the limit.
+- Everyone who played, joiners included, is kept on the game (`playerIds`, written by the server) so the game list, merging guests, removing players and the log all count them.
 
 **Rejoin**
 
@@ -200,7 +210,7 @@ Everything else (round entry, scrapping, live game view) runs client-side.
 
 - `leagues/{leagueId}` — name, adminUid (the owner), adminUids (other admins, absent on older leagues), inviteCode, memberUids, createdAt.
 - `leagues/{id}/players/{playerId}` — name, linkedUid (nullable), retired, mergedInto (nullable), createdBy, createdAt.
-- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
+- `leagues/{id}/games/{gameId}` — settings, seatOrder (initial), playerIds (everyone who played, written by functions), status, createdBy, createdAt, split (nullable, set by members), summary (nullable: outcome, winners, pot, payouts, rounds, per-player net, position, rounds played, rounds won, penalties, drops, rejoins, buy-ins), summaryError (nullable). `status`, `summary` and `summaryError` are written by functions only.
 - `leagues/{id}/games/{id}/rounds/{roundId}` — seq, winnerId (null in a penalty round), penalty (nullable: player, points, reason; absent on rounds saved before penalty rounds existed), entries (points or drop type per player), rejoins (player and seat, applied after the round), scrapped {by, at, reason} (nullable), updatedBy, updatedAt, history (one entry per change: who, when, and the previous values). The dealer is not stored; the engine derives it.
 - `leagues/{id}/log/{entryId}` — type, by, at, details: merges, unmerges, member changes, deleted games. Written by functions only.
 - `leagues/{id}/settled/{day_from_to_amount}` — day, from, to, amount, by, at: a payment marked as paid. The id says exactly which payment on which night, and the rules require it to match. Any member can create or delete one.

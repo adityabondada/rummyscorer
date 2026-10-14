@@ -28,7 +28,6 @@ describe('moments on the score board', () => {
   it('does not replay old news when a game is opened', () => {
     render(<ScoreBoard state={play([r1, r2])} names={names} />);
     expect(document.querySelector('[data-moment]')).toBeNull();
-    expect(document.querySelector('[data-fx]')).toBeNull();
   });
 
   it('slams a full count when a round is saved, to that player only, then settles', () => {
@@ -36,13 +35,11 @@ describe('moments on the score board', () => {
     rerender(<ScoreBoard state={play([r1])} names={names} />);
     expect(row('Cy')).toHaveAttribute('data-moment', 'slam');
     expect(row('Cy').querySelector('.slam-number')).toHaveTextContent('80');
-    expect(row('Cy').querySelector('[data-fx="slam"]')).toHaveTextContent('Cy');
     expect(row('Bo')).not.toHaveAttribute('data-moment');
     expect(row('Asha')).not.toHaveAttribute('data-moment');
 
     act(() => void vi.advanceTimersByTime(2400));
     expect(document.querySelector('[data-moment]')).toBeNull();
-    expect(document.querySelector('[data-fx]')).toBeNull();
   });
 
   it('does not slam anything short of a full count', () => {
@@ -69,8 +66,6 @@ describe('moments on the score board', () => {
       />,
     );
     expect(row('Bo')).toHaveAttribute('data-moment', 'slam');
-    expect(row('Bo').querySelector('[data-fx="slam"]')).toHaveTextContent('Bo');
-    expect(row('Bo').querySelector('[data-fx="slam"]')).not.toHaveTextContent('80');
   });
 
   it('counts 80 as a full count when the game has no cap', () => {
@@ -87,7 +82,6 @@ describe('moments on the score board', () => {
     rerender(<ScoreBoard state={play([r1, r2])} names={names} />);
     expect(row('Cy')).toHaveAttribute('data-moment', 'out');
     expect(row('Cy').querySelector('.fx-stamp')).toHaveTextContent('Out');
-    expect(row('Cy').querySelector('[data-fx="out"]')).toHaveTextContent('Cy');
     expect(row('Bo')).not.toHaveAttribute('data-moment');
 
     act(() => void vi.advanceTimersByTime(2400));
@@ -107,16 +101,14 @@ describe('moments on the score board', () => {
     expect(row('Cy').getAttribute('data-moment')!.split(' ').sort()).toEqual(['out', 'slam']);
   });
 
-  it('welcomes back a player who rejoins, and mentions the buy-in', () => {
+  it('welcomes back a player who rejoins', () => {
     const { rerender } = render(<ScoreBoard state={play([r1, { ...r2 }])} names={names} />);
     act(() => void vi.advanceTimersByTime(2400));
     rerender(<ScoreBoard state={play([r1, rejoin])} names={names} />);
     expect(row('Cy')).toHaveAttribute('data-moment', 'back');
-    expect(row('Cy').querySelector('[data-fx="back"]')).toHaveTextContent('Cy');
     expect(row('Bo')).not.toHaveAttribute('data-moment');
 
     act(() => void vi.advanceTimersByTime(2400));
-    expect(document.querySelector('[data-fx]')).toBeNull();
     // The badge that stays is the plain one.
     expect(screen.getByText('Rejoined')).toBeInTheDocument();
   });

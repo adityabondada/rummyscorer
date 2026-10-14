@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { GameRecap } from '@rummy/data';
 import type { GameState } from '@rummy/engine';
 import { errorMessage, shareGame } from '../../api';
 import { copyText, gameShareText, shareOrCopy, viewUrl } from '../../lib/share';
@@ -20,6 +21,7 @@ export function ShareModal({
   state,
   names,
   startedAt,
+  recap,
   shareCode,
   onClose,
 }: {
@@ -30,6 +32,8 @@ export function ShareModal({
   names: Record<string, string>;
   /** When the game was started, for the date on the picture. */
   startedAt?: number | null;
+  /** The story saved with the game, for the picture. */
+  recap?: GameRecap | null;
   /** The game's link while it is switched on. */
   shareCode: string | null | undefined;
   onClose: () => void;
@@ -47,8 +51,8 @@ export function ShareModal({
 
   // The picture is drawn as soon as the window opens, so it can be seen before it is sent.
   const model = useMemo(
-    () => buildGameCard({ leagueName, state, names, startedAt }),
-    [leagueName, state, names, startedAt],
+    () => buildGameCard({ leagueName, state, names, startedAt, recap }),
+    [leagueName, state, names, startedAt, recap],
   );
   const [picture, setPicture] = useState<Picture>({ status: 'making' });
   useEffect(() => {

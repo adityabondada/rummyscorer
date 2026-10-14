@@ -30,6 +30,43 @@ async function finishedGame(leagueId: string, [a, b, c]: [string, string, string
   return gameId;
 }
 
+describe('the story of a finished game', () => {
+  it('is saved in the summary, with the names the players have', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
+    const [a, b, c] = [profiles.admin!, profiles.u2!, profiles.u3!];
+    const gameId = await finishedGame(leagueId, [a, b, c]);
+    await recomputeGame(db, leagueId, gameId, NOW);
+
+    const { summary } = await readGame(db, leagueId, gameId);
+    expect(summary.recap.headline).toContain('Admin');
+    expect(summary.recap.lines.length).toBeGreaterThan(0);
+    expect(summary.recap.lines.length).toBeLessThanOrEqual(3);
+    expect(JSON.stringify(summary.recap)).not.toMatch(/undefined|\?\?/);
+  });
+
+  it('is left alone when nothing has changed', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
+    const [a, b, c] = [profiles.admin!, profiles.u2!, profiles.u3!];
+    const gameId = await finishedGame(leagueId, [a, b, c]);
+    expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('updated');
+    const first = (await readGame(db, leagueId, gameId)).summary.recap;
+    expect(await recomputeGame(db, leagueId, gameId, NOW + 1)).toBe('unchanged');
+    expect((await readGame(db, leagueId, gameId)).summary.recap).toEqual(first);
+  });
+
+  it('is not made for a game still being played', async () => {
+    const { leagueId, profiles } = await seedLeague(db, ['u2']);
+    const gameId = await addGame(db, leagueId, [profiles.admin!, profiles.u2!]);
+    await addRound(db, leagueId, gameId, {
+      seq: 1,
+      winnerId: profiles.admin!,
+      entries: { [profiles.u2!]: pts(10) },
+    });
+    await recomputeGame(db, leagueId, gameId, NOW);
+    expect((await readGame(db, leagueId, gameId)).summary).toBeNull();
+  });
+});
+
 describe('recomputeGame', () => {
   it('marks a finished game and caches its summary', async () => {
     const { leagueId, profiles } = await seedLeague(db, ['u2', 'u3']);
@@ -61,9 +98,12 @@ describe('recomputeGame', () => {
       entries: { [profiles.u2!]: pts(10) },
     });
 
+    // The first pass only notes who is playing; the game itself is still in progress.
+    expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('updated');
     expect(await recomputeGame(db, leagueId, gameId, NOW)).toBe('unchanged');
     const game = await readGame(db, leagueId, gameId);
     expect(game).toMatchObject({ status: 'inProgress', summary: null, summaryError: null });
+    expect(game.playerIds).toEqual([profiles.admin!, profiles.u2!]);
   });
 
   it('writes nothing when the result is the same', async () => {

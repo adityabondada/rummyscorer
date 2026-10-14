@@ -3,6 +3,7 @@ import { newRoundDoc, type GameDoc, type PlayerDoc, type RoundDoc } from '@rummy
 import { describe, expect, it } from 'vitest';
 import {
   planEditRound,
+  planJoin,
   planNewRound,
   planRejoin,
   planRestore,
@@ -306,6 +307,61 @@ describe('rejoin', () => {
     const rs = [row('r1', { seq: 1, winnerId: 'a', entries: { b: pts(10), x: pts(60) } })];
     const plan = planRejoin(gm, rs, p, 'c', 0, 'ua', 1);
     expect(plan.ok && plan.value.doc.rejoins[0]!.playerId).toBe('x');
+  });
+});
+
+describe('joining late', () => {
+  const league = (): PlayerMap => ({ ...players(), d: person('Dev'), e: person('Eli') });
+
+  it('goes on the latest round with the drops chosen, and the game then has them in it', () => {
+    const plan = planJoin(game(), rows(), league(), [{ playerId: 'd', drops: 1 }], 'ub', 70);
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.value.id).toBe('r2');
+    expect(plan.value.doc.rejoins).toEqual([{ playerId: 'd', seatIndex: -1, join: { drops: 1 } }]);
+    expect(plan.value.doc.history).toHaveLength(1);
+    const next = rows().map((r) => (r.id === 'r2' ? { id: 'r2', doc: plan.value.doc } : r));
+    const state = gameState(game(), next, league());
+    expect(state.players.d).toMatchObject({ total: 16, dropsLeft: 1, active: true });
+  });
+
+  it('adds several people in one go', () => {
+    const plan = planJoin(
+      game(),
+      rows(),
+      league(),
+      [
+        { playerId: 'd', drops: 2 },
+        { playerId: 'e', drops: 0 },
+      ],
+      'ub',
+      70,
+    );
+    expect(plan.ok && plan.value.doc.rejoins.map((r) => r.playerId)).toEqual(['d', 'e']);
+  });
+
+  it('is refused for someone already in the game', () => {
+    const plan = planJoin(game(), rows(), league(), [{ playerId: 'b', drops: 1 }], 'ua', 1);
+    expect(plan).toMatchObject({ ok: false });
+  });
+
+  it('is refused with no rounds, and with nobody picked', () => {
+    expect(planJoin(game(), [], league(), [{ playerId: 'd', drops: 1 }], 'ua', 1)).toMatchObject({
+      ok: false,
+      error: 'There is no round to join after',
+    });
+    expect(planJoin(game(), rows(), league(), [], 'ua', 1)).toMatchObject({
+      ok: false,
+      error: 'Pick at least one player',
+    });
+  });
+
+  it('is refused when the entry score would be past the limit', () => {
+    const g = game({ settings: { ...game().settings, limit: 40 } });
+    const rs = [row('r1', { seq: 1, winnerId: 'a', entries: { b: pts(10), c: pts(40) } })];
+    expect(planJoin(g, rs, league(), [{ playerId: 'd', drops: 1 }], 'ua', 1)).toMatchObject({
+      ok: false,
+    });
   });
 });
 

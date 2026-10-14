@@ -52,6 +52,12 @@ export interface PlayerStatsDoc {
   penalties?: number;
 }
 
+/** The short story of a finished game, kept with its summary so it never changes underneath. */
+export interface GameRecap {
+  headline: string;
+  lines: string[];
+}
+
 /** Cached result of a finished game. Written by `onRoundWrite`; stats read only these. */
 export interface GameSummaryDoc {
   outcome: GameOutcome;
@@ -61,12 +67,14 @@ export interface GameSummaryDoc {
   rounds: number;
   /** Keyed by resolved (merged) player id. */
   players: Record<PlayerId, PlayerStatsDoc>;
+  /** How the game went, written with the summary. Absent on games summarised before this existed. */
+  recap?: GameRecap;
   computedAt: number;
 }
 
 export interface GameDoc {
   settings: GameSettings;
-  /** Initial seat order. Later changes (rejoins) live in the rounds. */
+  /** Initial seat order. Later changes (rejoins, people joining late) live in the rounds. */
   seatOrder: PlayerId[];
   /** Set by functions from the replay; clients always create games as 'inProgress'. */
   status: 'inProgress' | 'finished';
@@ -78,6 +86,12 @@ export interface GameDoc {
   summary: GameSummaryDoc | null;
   /** Set by functions when the recorded rounds can't be replayed. */
   summaryError: string | null;
+  /**
+   * Everyone who has played in the game, including people who joined late; `seatOrder` has only
+   * those who started. Set by functions. Absent on games from before this was kept, which have
+   * `seatOrder` alone.
+   */
+  playerIds?: PlayerId[];
   /** Set by functions while a read-only link for watching the game is switched on. */
   shareCode?: string | null;
 }

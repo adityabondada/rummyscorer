@@ -1,18 +1,27 @@
+import { buildRecap, type GameRecap } from '@rummy/data';
 import { displayOrder, simplifyTransfers, summarize, type GameState } from '@rummy/engine';
-import { buildRecap } from '../../lib/recap';
 import { Badge, Card, money } from '../../ui';
 
 const ordinal = (n: number) =>
   `${n}${['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10 < 4 ? n % 10 : 0]}`;
 
 /** The result of a finished game: who won, what each player nets, and who pays whom. */
-export function ResultCard({ state, names }: { state: GameState; names: Record<string, string> }) {
+export function ResultCard({
+  state,
+  names,
+  recap: kept,
+}: {
+  state: GameState;
+  names: Record<string, string>;
+  /** The story saved with the game's summary. Games from before it was saved tell it afresh. */
+  recap?: GameRecap | null;
+}) {
   const summary = summarize(state);
   if (!summary) return null;
   const nameOf = (id: string) => names[id] ?? '?';
   const winners = summary.winnerIds.map(nameOf).join(' & ');
   const transfers = simplifyTransfers(summary.net);
-  const recap = buildRecap(state, names);
+  const recap = kept ?? buildRecap(state, names);
   const order = displayOrder(state).sort(
     (a, b) => summary.positions[a]! - summary.positions[b]! || summary.net[b]! - summary.net[a]!,
   );

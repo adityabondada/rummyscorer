@@ -225,6 +225,17 @@ describe('the story on the picture', () => {
     for (const line of story) expect(line.length).toBeLessThanOrEqual(56);
   });
 
+  it('is the story saved with the game, when there is one', () => {
+    const { story } = buildGameCard({
+      leagueName: 'F',
+      state: finished(),
+      names,
+      startedAt: when,
+      recap: { headline: 'x', lines: ['A saved line about Asha.', 'And a second saved line.'] },
+    });
+    expect(story).toEqual(['A saved line about Asha.', 'And a second saved line.']);
+  });
+
   it('is left out for a game still on, and for a night', () => {
     expect(
       buildGameCard({ leagueName: 'F', state: inProgress(), names, startedAt: when }).story,

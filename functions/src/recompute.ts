@@ -97,10 +97,15 @@ export async function recomputeGame(
         roundsSnap.docs.map((d) => d.data()),
         playersSnap.docs.map((d) => [d.id, d.data()] as [string, unknown]),
       );
+      const names: Record<string, string> = {};
+      for (const doc of playersSnap.docs) {
+        const name = doc.data().name;
+        if (typeof name === 'string') names[doc.id] = name;
+      }
       derived = {
         playerIds,
         status: state.status,
-        summary: summaryFromState(state, now),
+        summary: summaryFromState(state, now, names),
         summaryError: null,
       };
     } catch (error) {

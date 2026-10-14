@@ -283,6 +283,29 @@ describe('ScoreBoard and ResultCard', () => {
     expect(within(recap).getAllByRole('listitem').length).toBeGreaterThan(0);
   });
 
+  it('shows the story saved with the game instead of working one out again', () => {
+    const state = stateWith([
+      {
+        seq: 1,
+        winnerId: 'a',
+        entries: { b: { kind: 'points', points: 60 }, c: { kind: 'points', points: 60 } },
+      },
+    ]);
+    render(
+      <ResultCard
+        state={state}
+        names={names}
+        recap={{ headline: 'Saved', lines: ['This one was saved with the game.'] }}
+      />,
+    );
+    const recap = screen.getByTestId('recap');
+    expect(
+      within(recap)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['This one was saved with the game.']);
+  });
+
   it('shows nothing while the game is still going', () => {
     const { container } = render(<ResultCard state={stateWith()} names={names} />);
     expect(container).toBeEmptyDOMElement();

@@ -50,6 +50,50 @@ const penaltyRound = (
 });
 const pts = (points: number) => ({ kind: 'points' as const, points });
 
+describe('the story kept with a finished game', () => {
+  const finishedState = () => replay(gameInput(game(), finishedRounds()));
+  const finishedRounds = (): RoundDoc[] => [
+    newRoundDoc({ seq: 1, winnerId: 'A', entries: { B: pts(10), C: pts(51) } }, 'u1', 1),
+    newRoundDoc({ seq: 2, winnerId: 'A', entries: { B: pts(45) } }, 'u1', 2),
+  ];
+  const names = { A: 'Asha', B: 'Bo', C: 'Cy' };
+
+  it('is saved in the summary when the names are known', () => {
+    const summary = summaryFromState(finishedState(), 1, names)!;
+    expect(summary.recap!.headline).toContain('Asha');
+    expect(summary.recap!.lines.length).toBeGreaterThan(0);
+    expect(summary.recap!.lines.length).toBeLessThanOrEqual(3);
+  });
+
+  it('is left out of the summary when no names are given, so the numbers alone are unchanged', () => {
+    expect(summaryFromState(finishedState(), 1)!.recap).toBeUndefined();
+  });
+
+  it('is the same every time it is worked out', () => {
+    expect(summaryFromState(finishedState(), 1, names)!.recap).toEqual(
+      summaryFromState(finishedState(), 99, names)!.recap,
+    );
+  });
+
+  it('survives being stored and read back, and a summary without one still reads', () => {
+    const summary = summaryFromState(finishedState(), 5, names)!;
+    const stored = game({ status: 'finished', summary });
+    expect(parseGame(JSON.parse(JSON.stringify(stored))).summary!.recap).toEqual(summary.recap);
+    const { recap: _gone, ...old } = summary;
+    void _gone;
+    const back = parseGame(JSON.parse(JSON.stringify({ ...stored, summary: old })));
+    expect(back.summary!.recap).toBeUndefined();
+    expect(back.summary!.pot).toBe(summary.pot);
+  });
+
+  it('is refused when it is not a headline and some lines', () => {
+    const summary = summaryFromState(finishedState(), 5, names)!;
+    const bad = JSON.parse(JSON.stringify(game({ status: 'finished', summary })));
+    bad.summary.recap = { headline: 'x', lines: 'not a list' };
+    expect(() => parseGame(bad)).toThrow();
+  });
+});
+
 describe('who has played in a game', () => {
   const doc = (rejoins: unknown[], scrapped = false) =>
     ({

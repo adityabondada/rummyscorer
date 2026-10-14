@@ -1,11 +1,17 @@
 import { summarize, type GameState } from '@rummy/engine';
+import { buildRecap } from './recap';
 import type { GameSummaryDoc } from './types';
 
 /**
  * The cached summary for a finished game, or null while it's still being played. Build `state`
- * with `replay(..., { resolveId })` so every id here is already the merged member profile.
+ * with `replay(..., { resolveId })` so every id here is already the merged member profile. With
+ * `names` (by that same id) the story of the game is kept in the summary as well.
  */
-export function summaryFromState(state: GameState, computedAt: number): GameSummaryDoc | null {
+export function summaryFromState(
+  state: GameState,
+  computedAt: number,
+  names?: Record<string, string>,
+): GameSummaryDoc | null {
   const summary = summarize(state);
   if (!summary) return null;
 
@@ -23,6 +29,7 @@ export function summaryFromState(state: GameState, computedAt: number): GameSumm
       penalties: p.penalties,
     };
   }
+  const recap = names ? buildRecap(state, names) : null;
   return {
     outcome: summary.outcome,
     winnerIds: summary.winnerIds,
@@ -30,6 +37,7 @@ export function summaryFromState(state: GameState, computedAt: number): GameSumm
     payouts: summary.payouts,
     rounds: summary.rounds,
     players,
+    ...(recap ? { recap } : {}),
     computedAt,
   };
 }

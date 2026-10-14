@@ -342,7 +342,7 @@ export function GameScreen() {
 
       {state && finished && (
         <>
-          <ResultCard state={state} names={names} />
+          <ResultCard state={state} names={names} recap={game.summary?.recap} />
           {splitFinished ? (
             <Button variant="danger" onClick={() => void cancelSplit()}>
               Cancel the split and reopen the game
@@ -498,6 +498,7 @@ export function GameScreen() {
           state={state}
           names={names}
           startedAt={game.createdAt}
+          recap={game.summary?.recap}
           shareCode={game.shareCode}
           onClose={close}
         />

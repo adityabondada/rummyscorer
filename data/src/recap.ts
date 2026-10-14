@@ -1,10 +1,19 @@
 import { summarize, type GameState } from '@rummy/engine';
-import { pick } from './quips';
+import type { GameRecap } from './types';
 
 /** A short, light-hearted story of a finished game, built from what actually happened in it. */
-export interface Recap {
-  headline: string;
-  lines: string[];
+export type Recap = GameRecap;
+
+/** A small, stable number from a string, so the same game always picks the same lines. */
+function hash(text: string): number {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/** One entry from a list, chosen by a key: the same key always gives the same entry. */
+function pick<T>(pool: readonly T[], key: string): T {
+  return pool[hash(key) % pool.length]!;
 }
 
 interface Fact {

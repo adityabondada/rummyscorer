@@ -113,27 +113,6 @@
     background-color: rgb(254 202 202 / 0.9);
   }
 }
-@keyframes chip-rise {
-  0% {
-    transform: translateY(6px) scale(0.5);
-    opacity: 0;
-  }
-  15% {
-    transform: translateY(0) scale(1.15);
-    opacity: 1;
-  }
-  25% {
-    transform: scale(1);
-  }
-  80% {
-    transform: translateY(-6px);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-14px);
-    opacity: 0;
-  }
-}
 @keyframes out-stamp {
   0% {
     transform: translate(-50%, -50%) rotate(-14deg) scale(3);
@@ -212,16 +191,12 @@
     bounce-back 0.8s ease-out,
     back-glow 1.8s ease-out;
 }
-.fx-chip {
-  pointer-events: none;
-  animation: chip-rise 2.2s ease-out both;
-}
 .fx-stamp {
   pointer-events: none;
   animation: out-stamp 2s ease-out both;
 }
 
-/* With motion switched off the jokes still show for their couple of seconds, just without moving. */
+/* With motion switched off the stamp is left out. */
 @media (prefers-reduced-motion: reduce) {
   .fx-stamp {
     display: none;

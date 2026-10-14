@@ -241,6 +241,14 @@ function parseSummary(value: unknown): GameSummaryDoc {
         parseStats(s, `players.${id}`),
       ]),
     ),
+    ...(d.recap === undefined || d.recap === null
+      ? {}
+      : {
+          recap: {
+            headline: str(obj(d.recap, 'recap').headline, 'recap.headline'),
+            lines: strings(obj(d.recap, 'recap').lines, 'recap.lines'),
+          },
+        }),
     computedAt: num(d.computedAt, 'computedAt'),
   };
 }

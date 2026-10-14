@@ -1,6 +1,6 @@
 import { displayOrder, simplifyTransfers, summarize, type GameState } from '@rummy/engine';
+import { buildRecap, type GameRecap } from '@rummy/data';
 import type { Night } from './night';
-import { buildRecap } from './recap';
 import { raceView, type RaceTone } from './race';
 
 /** One player's line on the picture. */
@@ -63,6 +63,8 @@ export function buildGameCard(args: {
   names: Record<string, string>;
   startedAt?: number | null;
   locale?: string;
+  /** The story saved with the game; told afresh when there isn't one. */
+  recap?: GameRecap | null;
 }): CardModel {
   const { leagueName, state, names, startedAt, locale } = args;
   const nameOf = (id: string) => names[id] ?? '?';
@@ -99,7 +101,7 @@ export function buildGameCard(args: {
     });
     const winners = summary.winnerIds.map(nameOf).join(' & ');
     const rounds = `${summary.rounds} round${summary.rounds === 1 ? '' : 's'}`;
-    const recap = buildRecap(state, names);
+    const recap = args.recap ?? buildRecap(state, names);
     return {
       kind: 'finished',
       league: leagueName,
